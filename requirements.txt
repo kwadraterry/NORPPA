@@ -1,0 +1,7 @@
+scikit_image
+scikit_learn==1.0.1
+numpy
+Pillow
+tensorflow==2.5
+ipykernel
+rawpy
