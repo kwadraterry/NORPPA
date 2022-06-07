@@ -32,10 +32,12 @@ def apply_pipeline(image, label, pipeline):
     return apply_step((image, label), pipeline[0], pipeline[1:])
 
 
-def apply_pipeline_cocodataset(cocodataset, pipeline):
+def apply_pipeline_cocodataset(cocodataset, pipeline, verbose=False):
     result = []
-    for img, data in cocodataset:
+    for (i, (img, data)) in enumerate(cocodataset):
         result.extend(apply_pipeline(img, data, pipeline))
+        if verbose:
+            print(f"Completed {i+1}/{len(cocodataset)} images")
     return result
 
 def process(SOURCE_DIR, pipeline):
@@ -171,7 +173,11 @@ def save_step(input, dest_dir, new_path_name=None):
     image, label = input
     if image is not None:
         os.makedirs(dest_dir, exist_ok=True)
-        new_path = change_dir(label['file'], dest_dir)
+        if type(label) is dict and 'dataset_dir' in label:
+            new_path = os.path.join(dest_dir, os.path.relpath(label['file'], label['dataset_dir']))
+        else:
+            new_path = change_dir(label['file'], dest_dir)
+        os.makedirs(os.path.dirname(new_path), exist_ok = True) 
         image.save(new_path)
         if type(label) is dict and new_path_name is not None:
             label[new_path_name] = new_path

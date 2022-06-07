@@ -5,3 +5,4 @@ Pillow
 tensorflow==2.5
 ipykernel
 rawpy
+wget
