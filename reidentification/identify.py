@@ -157,15 +157,56 @@ def patchify(dataset, config):
     return np.vstack(result), np.array(inds), labels, all_ells
 
 
+def patchify_sequence(dataset, config):
+    net = config["net"]
+    result = []
+    labels = []
+    inds = []
+    all_ells = []
+    ind = 0
+    dataset_transforms = transforms.Grayscale(num_output_channels=1)
+    
+    for i, (sequence, seq_label) in enumerate(tqdm(dataset)):
+        seq_patches = []
+        seq_ells = []
+        for j, image in enumerate(sequence): 
+            image = dataset_transforms(image)
+            if sum(image.getextrema()) == 0:
+                continue
+            patches, ells = patch_extraction(image, config)
 
-def _encode_dataset(dataset, config, codebooks=None):
-    features, inds, labels, all_ells = patchify(dataset, config)
+            if patches is None or len(patches) == 0:
+                continue
+            seq_patches.append(patches)
+            seq_ells.append(ells)
+        seq_patches = np.vstack(seq_patches)
+        patch_features = torch.from_numpy(seq_patches/255).float().unsqueeze(1)
+        if config["use_cuda"]:
+            patch_features = patch_features.cuda()
+        patch_features = apply_batch_net(patch_features, net)
+        all_ells.append(seq_ells)
+        inds.extend([ind] * patch_features.shape[0])
+        ind += 1
+        labels.append(seq_label)
+        result.append(patch_features)
+        del seq_patches
+        gc.collect()
+    labels = np.array(labels)
+    return np.vstack(result), np.array(inds), labels, all_ells
+
+
+
+def _encode_dataset(dataset, config, codebooks=None, seq=False):
+    if seq:
+        features, inds, labels, all_ells = patchify_sequence(dataset, config)
+    else:
+        features, inds, labels, all_ells = patchify(dataset, config)
     print("Calculating PCA")
     if codebooks is None:
         features, pca = encode_pca(features, n_components=config["pca"], whiten=True)
     else:
         features = apply_pca(features, codebooks["pca"])
-    
+
     print("Getting encoding parameters...")
     if codebooks is None:
         encoding_params = get_encoding_parameters(features, n_clusters=config["n_clusters"], verbose=False)
@@ -174,7 +215,7 @@ def _encode_dataset(dataset, config, codebooks=None):
 
     print("Encoding...")
     features, patch_features = encode_all_images(features, inds, encoding_params)
-    
+
     kpca = None
     if config["use_kpca"]:
         if codebooks["kpca"] is None:
@@ -182,10 +223,11 @@ def _encode_dataset(dataset, config, codebooks=None):
             features = kpca.fit_transform(features)
         elif codebooks["kpca"] is not None:
             features = codebooks["kpca"].transform(features)
-    
+
     if codebooks is None:
         codebooks = {'pca': pca, 'gmm': encoding_params, 'kpca': kpca}
     return features, labels, patch_features, all_ells, codebooks
+    
 
 
 def do_matching(test_feats, db_feats, percentile=10):
@@ -244,6 +286,7 @@ def encode_single(image, cfg):
     return encode_dataset([(image, 0)], cfg)[0][0]
 
 
+
 def encode_pipeline(input, cfg):
     if input[0] is None:
         return input
@@ -252,6 +295,11 @@ def encode_pipeline(input, cfg):
 def encode_dataset(dataset, cfg):
     codebooks = load_codebooks(cfg)
     query_features, query_labels, query_patch_features, query_patches, _ = _encode_dataset(dataset, cfg, codebooks)
+    return list(zip(list(zip(query_features, query_patch_features, query_patches)), query_labels))
+
+def encode_sequence_dataset(dataset, cfg):
+    codebooks = load_codebooks(cfg)
+    query_features, query_labels, query_patch_features, query_patches, _ = _encode_dataset(dataset, cfg, codebooks, seq=True)
     return list(zip(list(zip(query_features, query_patch_features, query_patches)), query_labels))
 
 

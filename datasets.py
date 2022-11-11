@@ -96,6 +96,44 @@ class SimpleDataset(Dataset):
                 result.append((str(img), class_dir.name))
         return result
 
+    
+class SequenceDataset(Dataset):
+    def __init__(self, 
+                dataset_dir):
+        
+        self.dataset_dir = dataset_dir
+
+        self.data = self._get_data(dataset_dir)
+        self.classes = list(self._get_classes(self.data))
+
+    def __getitem__(self, index):
+        img_paths, pid, seq = self.data[index]
+        images = []
+        for img_path in img_paths:
+            img = read_image(img_path)
+            images.append(img)
+        return images, {'class_id': pid, 'sequence_id': seq, 'dataset_dir':self.dataset_dir}
+
+    def __len__(self):
+        return len(self.data)
+
+    def _get_classes(self, data):
+        classes = set([items[1] for items in data])
+        return classes
+    
+
+    def _get_data(self, dataset_dir):
+        dataset_dir = Path(dataset_dir)
+        result = []
+        
+        for class_dir in [x for x in dataset_dir.iterdir() if x.is_dir()]:
+            for seq in class_dir.iterdir():
+                images = []
+                for img in seq.iterdir():
+                    images.append(str(img))
+                result.append((images, class_dir.name, seq.name))
+        return result
+
    
 
     
