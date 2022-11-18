@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 from tools import read_image
 import csv
+import numpy as np
 
 from torch.utils.data import Dataset
 import os
@@ -65,7 +66,6 @@ class COCOImageDataset(Dataset):
 
     
 
-   
 class SimpleDataset(Dataset):
     def __init__(self, 
                 dataset_dir):
@@ -95,6 +95,11 @@ class SimpleDataset(Dataset):
             for img in class_dir.iterdir():
                 result.append((str(img), class_dir.name))
         return result
+    
+    def get_labels(self):
+        labels = [items[1] for items in self.data]
+        return labels
+
 
     
 class SequenceDataset(Dataset):
@@ -107,12 +112,9 @@ class SequenceDataset(Dataset):
         self.classes = list(self._get_classes(self.data))
 
     def __getitem__(self, index):
-        img_paths, pid, seq = self.data[index]
-        images = []
-        for img_path in img_paths:
-            img = read_image(img_path)
-            images.append(img)
-        return images, {'class_id': pid, 'sequence_id': seq, 'dataset_dir':self.dataset_dir}
+        img_path, pid, seq = self.data[index]
+        img = read_image(img_path)
+        return img, {'class_id': pid, 'sequence_id': seq, 'dataset_dir':self.dataset_dir}
 
     def __len__(self):
         return len(self.data)
@@ -121,6 +123,24 @@ class SequenceDataset(Dataset):
         classes = set([items[1] for items in data])
         return classes
     
+    def _get_sequences(self, data):
+        seqs = np.unique([items[2] for items in data])
+        return seqs
+    
+    def get_sequence_ids(self):
+        data = self.data
+        seqs = self._get_sequences(data)
+        res = [np.where(seqs==items[2])[0][0] for items in data]
+        return res
+    
+    def get_sequence_labels(self):
+        data = self.data
+        seqs = self._get_sequences(data)
+        res = []
+        for seq in seqs:
+            ind = next(i for (i,x) in enumerate(data) if x[2] == seq)
+            res.append(data[ind][1])
+        return res
 
     def _get_data(self, dataset_dir):
         dataset_dir = Path(dataset_dir)
@@ -130,8 +150,7 @@ class SequenceDataset(Dataset):
             for seq in class_dir.iterdir():
                 images = []
                 for img in seq.iterdir():
-                    images.append(str(img))
-                result.append((images, class_dir.name, seq.name))
+                    result.append((str(img), class_dir.name, seq.name))
         return result
 
    

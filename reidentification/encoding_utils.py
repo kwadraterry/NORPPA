@@ -15,7 +15,10 @@ def cdist_std(x, y):
 
 
 def calculate_dists(test_features, db_features, dist_func=cdist_std):
+    print("test features", test_features.shape)
+    print("db features", db_features.shape)
     dists = dist_func(test_features, db_features)
+   
     inds = np.argsort(dists, axis=1)
 
     return (dists, inds)
@@ -78,6 +81,7 @@ def encode_pca(encoded, n_components=64, whiten=False):
 
 def apply_pca(encoded, pca):
     return pca.transform(encoded)
+
 
 
 
