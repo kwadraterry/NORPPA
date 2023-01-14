@@ -2,8 +2,6 @@
 import sys
 from pathlib import Path
 
-from pattern_extraction.extract_pattern import extract_pattern
-
 file_folder = Path(__file__).resolve().parent
 sys.path.append(str(file_folder / "reidentification/hesaff_pytorch"))
 
@@ -29,7 +27,7 @@ def config(use_cuda=True, allow_download=True):
     base_dir = Path(__file__).resolve().parent
     mount_path = "/ekaterina/work/data/many_dataset/"
     
-    path_db = mount_path + "tasks.db"
+    path_db = mount_path + "DB.db"
     config["conn"] = create_connection(path_db)
 
     config["net"] = init_hardnet(init_file(base_dir/"models/HardNet++.pth", 

@@ -10,6 +10,7 @@ from skimage import color
 import numpy as np
 from datetime import datetime
 from six.moves import urllib
+from pattern_extraction.utils import thickness_resize
 
 from PIL import Image, ImageFile
 ImageFile.LOAD_TRUNCATED_IMAGES = True
@@ -162,12 +163,35 @@ def crop_step(input):
             label["bb"] = bb
     return [(image, label)]
 
+def thickness_resize_step(input):
+    image, label = input 
+    if image is not None:
+        image, ratio = thickness_resize(image, return_ratio=True)
+        if type(label) is dict:
+            label["resize_ratio"] = ratio
+    return [(image, label)]
+
 def change_dir(path, new_dir):
     name = os.path.basename(path)
     return os.path.join(new_dir, name)
 
 def get_save_step(dest_dir):
     return lambda x: save_step(x, dest_dir)
+
+def test_save_step(dest_dir):
+    return lambda x: test_step(x, dest_dir)
+
+def test_step(input, dest_dir):
+    image, label = input
+    if image is not None:
+        if type(label) is dict and 'dataset_dir' in label:
+            new_path = os.path.join(dest_dir, os.path.relpath(label['file'], label['dataset_dir']))
+        else:
+            new_path = change_dir(label['file'], dest_dir)
+        if os.path.exists(new_path):
+            return []
+        
+    return [(image, label)]
 
 def save_step(input, dest_dir, new_path_name=None):
     image, label = input

@@ -48,12 +48,15 @@ def smart_resize(img, size, return_ratio=False):
         return result
 
 def thickness_resize(img, thickness=2, return_ratio=False):
+    if img.mode != 'L':
+        img = img.convert('L')
     img0 = np.array(img) > 0
     area = np.sum(img0)
     if area==0:
         return smart_resize(img, 300, return_ratio)
     img1 = skeletonize(img0)
     length = np.sum(img1)
+    
     thickness_current = area / length
     ratio = thickness / thickness_current
     resized_img = img.resize(tuple(int(i * ratio) for i in img.size), Image.ANTIALIAS)

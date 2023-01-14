@@ -11,8 +11,10 @@ class DatasetSlice(Dataset):
     def __init__(self, dataset, slice=None):
         self.dataset = dataset
         self.slice = (0, len(self.dataset)) if slice is None else slice
+        if type(self.slice) is tuple:
+            self.slice = range(*self.slice)
         if hasattr(dataset,'imgs'):
-            self.imgs = [dataset.imgs[i] for i in slice]
+            self.imgs = [dataset.imgs[i] for i in self.slice]
         if hasattr(dataset,'classes'):
             self.classes = dataset.classes
     def __getitem__(self, index):
@@ -114,7 +116,7 @@ class SequenceDataset(Dataset):
     def __getitem__(self, index):
         img_path, pid, seq = self.data[index]
         img = read_image(img_path)
-        return img, {'class_id': pid, 'sequence_id': seq, 'dataset_dir':self.dataset_dir}
+        return img, {'class_id': pid, 'sequence_id': seq, 'dataset_dir':self.dataset_dir, 'file':img_path}
 
     def __len__(self):
         return len(self.data)
@@ -127,10 +129,19 @@ class SequenceDataset(Dataset):
         seqs = np.unique([items[2] for items in data])
         return seqs
     
-    def get_sequence_ids(self):
+    def get_sequence_ids(self, k=None):
         data = self.data
         seqs = self._get_sequences(data)
-        res = [np.where(seqs==items[2])[0][0] for items in data]
+        counts = [0] *len(seqs)
+        res = []
+#         res = [np.where(seqs==items[2])[0][0] for items in data]
+        for items in data:
+            seq_id = np.where(seqs==items[2])[0][0]
+            if k is None or counts[seq_id] < k:
+                counts[seq_id]+=1
+            else:
+                seq_id = -1
+            res.append(seq_id)
         return res
     
     def get_sequence_labels(self):
@@ -140,6 +151,28 @@ class SequenceDataset(Dataset):
         for seq in seqs:
             ind = next(i for (i,x) in enumerate(data) if x[2] == seq)
             res.append(data[ind][1])
+        return res
+    
+    def get_labels(self):
+        labels = [items[1] for items in self.data]
+        return labels
+    
+    def get_sequence_files(self):
+        data = self.data
+        seqs = self._get_sequences(data)
+        res = []
+        for seq in seqs:
+            ind = next(i for (i,x) in enumerate(data) if x[2] == seq)
+            res.append(data[ind][0])
+        return res
+    
+    def get_sequence_lenghts(self):
+        data = self.data
+        seqs = self._get_sequences(data)
+        res = []
+        for seq in seqs:
+            ln = len(list(filter(lambda x: x[2] == seq, data)))
+            res.append(ln)
         return res
 
     def _get_data(self, dataset_dir):
