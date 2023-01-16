@@ -53,11 +53,11 @@ def visualise_match(input, path_to_load="file", uncropped=True, gap=20, n_rad=50
         
         plt.title(f'Distance: {match["distance"]}')
         plt.title(f'Query: class {query_label["class_id"]}', loc='left')
-        plt.title(f'Top-{k+1}: class {query_label["class_id"]}', loc='right')
+        plt.title(f'Top-{k+1}: class {db_label["class_id"]}', loc='right')
         for LAF_q, LAF_db, sim in zip(query_patches, db_patches, similarity):
             max_opacity = 0.5*sim
             p1 = ell2plotMatch(plt, LAF_q, colors, shift=query_shift,n_rad=n_rad, max_opacity=max_opacity, n_pts=n_pts)
             p2 = ell2plotMatch(plt, LAF_db, colors, shift=shift, scale=db_ratio, n_rad=n_rad, max_opacity=max_opacity, n_pts=n_pts)
-            plt.plot([p1[0], p2[0]], [p1[1], p2[1]], color=(*line_color, max_opacity* 3))   
+            plt.plot([p1[0], p2[0]], [p1[1], p2[1]], color=(*line_color, min(max_opacity* 3, 1)))   
         plt.show()
     return input

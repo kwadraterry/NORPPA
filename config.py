@@ -27,7 +27,7 @@ def config(use_cuda=True, allow_download=True):
     base_dir = Path(__file__).resolve().parent
     mount_path = "/ekaterina/work/data/many_dataset/"
     
-    path_db = mount_path + "DB.db"
+    path_db = mount_path + "DB_test.db"
     config["conn"] = create_connection(path_db)
 
     config["net"] = init_hardnet(init_file(base_dir/"models/HardNet++.pth", 
