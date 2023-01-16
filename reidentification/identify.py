@@ -210,8 +210,7 @@ def match_topk(test_features, db_features, topk):
     dists, inds = calculate_dists(test_features, db_features)
     sorted_inds = np.argsort(dists, axis=1)
     dists = np.take_along_axis(dists, sorted_inds, axis=1)
-    inds = np.take_along_axis(inds, sorted_inds, axis=1)
-    return dists[:, :topk], inds[:, :topk]
+    return dists[:, :topk], sorted_inds[:, :topk]
 
 def load_codebooks(cfg):
     if cfg['codebooks'] is None:
