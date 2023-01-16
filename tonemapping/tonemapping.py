@@ -81,6 +81,8 @@ def get_path(label):
 
 def tonemap_step(input):
     image, img_label = input
+    if image is None:
+        return []
     image = encode(image, get_path(img_label))
     image = call_mantiuk(image)
     result_image = decode(image)

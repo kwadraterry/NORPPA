@@ -44,8 +44,7 @@ def extract_pattern(input, model):
         result, ratio = result
         if type(img_label) is dict:
             img_label["resize_ratio"] = ratio
-
-    if sum(result.convert("L").getextrema()) in (0, 2):
-        result = None
-
+        if sum(result.convert("L").getextrema()) in (0, 2):
+            result = None
+    
     return [(result, img_label)]

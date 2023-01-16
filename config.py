@@ -2,8 +2,6 @@
 import sys
 from pathlib import Path
 
-from pattern_extraction.extract_pattern import extract_pattern
-
 file_folder = Path(__file__).resolve().parent
 sys.path.append(str(file_folder / "reidentification/hesaff_pytorch"))
 
@@ -12,6 +10,7 @@ from HessianAffinePatches import init_affnet, init_orinet, init_hardnet
 from segmentation.detectron_segment import create_predictor
 from pattern_extraction.extract_pattern import create_unet
 from torchvision.datasets.utils import download_url
+from sql import create_connection
 
 def init_file(path, url, allow_download=True):
     if Path(path).exists():
@@ -26,6 +25,10 @@ def config(use_cuda=True, allow_download=True):
 
     config =  {}     
     base_dir = Path(__file__).resolve().parent
+    mount_path = "/ekaterina/work/data/many_dataset/"
+    
+    path_db = mount_path + "DB_test.db"
+    config["conn"] = create_connection(path_db)
 
     config["net"] = init_hardnet(init_file(base_dir/"models/HardNet++.pth", 
                                             "https://github.com/kwadraterry/NORPPA/raw/models/models/HardNet++.pth", 
@@ -39,7 +42,7 @@ def config(use_cuda=True, allow_download=True):
                                             "https://github.com/kwadraterry/NORPPA/raw/models/models/OriNet.pth", 
                                             allow_download=allow_download), 
                                 use_cuda=use_cuda)
-    codebooks_path = init_file(base_dir/'codebooks/codebooks.pickle',
+    codebooks_path = init_file(base_dir/'codebooks/norppa.pickle',
                                "https://github.com/kwadraterry/NORPPA/raw/models/codebooks/codebooks.pickle", 
                                allow_download=allow_download)
     config["codebooks_path"] = codebooks_path 

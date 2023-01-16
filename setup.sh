@@ -22,8 +22,8 @@ while [ "$1" != "" ]; do
 done
 
 echo "Creating and activating norppa environment"
-conda create -y --name norppa python=3.7 cudatoolkit=11.1 cyvlfeat opencv ffmpeg cudnn -c conda-forge
-conda activate norppa
+conda create -y --prefix /ekaterina/env/norppa python=3.7 cudatoolkit=11.1 cyvlfeat opencv ffmpeg cudnn -c conda-forge
+conda activate /ekaterina/env/norppa
 
 echo "Installing ipykernel, cyvlfeat and opencv"
 # conda install -y cyvlfeat libopencv opencv py-opencv -c conda-forge

@@ -16,6 +16,7 @@ def cdist_std(x, y):
 
 def calculate_dists(test_features, db_features, dist_func=cdist_std):
     dists = dist_func(test_features, db_features)
+   
     inds = np.argsort(dists, axis=1)
 
     return (dists, inds)
@@ -48,7 +49,7 @@ def power_normalize(v, p=0.5):
 
 def encode_all_images(features, inds, encoding_params):
     img_inds = np.unique(inds)
-    n = len(img_inds)
+    n = img_inds[-1] + 1
     encoded = np.zeros((n,
                         2 * features.shape[1]
                         * encoding_params[0].shape[0]))
@@ -78,6 +79,7 @@ def encode_pca(encoded, n_components=64, whiten=False):
 
 def apply_pca(encoded, pca):
     return pca.transform(encoded)
+
 
 
 
