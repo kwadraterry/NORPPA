@@ -302,13 +302,15 @@ def encode_dataset(dataset, cfg):
     query_features, query_labels, query_patch_features, query_patches, _ = _encode_dataset(dataset, cfg, codebooks)
     return list(zip(list(zip(query_features, query_patch_features, query_patches)), query_labels))
 
-def encode_sequence_dataset(dataset, cfg, sequence_ids=None, sequence_labels=None, sequence_dataset=None):
-    if sequence_dataset is None:
-        sequence_dataset = dataset
-    if sequence_ids is None:
-        sequence_ids = sequence_dataset.get_sequence_ids()
-    if sequence_labels is None:
+def encode_sequence_dataset(dataset, cfg):
+    if hasattr(dataset, 'get_sequence_ids'):
+        sequence_ids = dataset.get_sequence_ids()
+    else:
+        sequence_ids = [0 for i in dataset.data]
+    if hasattr(dataset, 'get_sequence_labels'):
         sequence_labels = sequence_dataset.get_sequence_labels()
+    else:
+        sequence_labels = [i[1] for i in segmented_query_dataset.data]
     codebooks = load_codebooks(cfg)
     query_features, query_labels, query_patch_features, query_patches, _ = _encode_dataset(dataset, cfg, codebooks, sequence_ids, sequence_labels)
     return list(zip(list(zip(query_features, query_patch_features, query_patches)), query_labels))
