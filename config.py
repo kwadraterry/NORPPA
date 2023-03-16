@@ -42,7 +42,7 @@ def config(use_cuda=True, allow_download=True):
                                             "https://github.com/kwadraterry/NORPPA/raw/models/models/OriNet.pth", 
                                             allow_download=allow_download), 
                                 use_cuda=use_cuda)
-    codebooks_path = init_file(base_dir/'codebooks/norppa.pickle',
+    codebooks_path = init_file(base_dir/'codebooks/codebooks.pickle',
                                "https://github.com/kwadraterry/NORPPA/raw/models/codebooks/codebooks.pickle", 
                                allow_download=allow_download)
     config["codebooks_path"] = codebooks_path 
@@ -80,6 +80,7 @@ def config(use_cuda=True, allow_download=True):
     config["kernel"] = "rbf"
     config["use_cuda"] = use_cuda
     config["dataset_dir"] = base_dir/'data'
+    config["sequence_dataset_dir"] = '/ekaterina/work/data/many_dataset/original_small'
 
     config["batch_size"] = 256
 
