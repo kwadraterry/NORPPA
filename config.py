@@ -25,9 +25,9 @@ def config(use_cuda=True, allow_download=True):
 
     config =  {}     
     base_dir = Path(__file__).resolve().parent
-    mount_path = "/ekaterina/work/data/many_dataset/"
+    mount_path = "/veikka_immonen/work/data/"
     
-    path_db = mount_path + "DB_test.db"
+    path_db = mount_path + "DB.db"
     config["conn"] = create_connection(path_db)
 
     config["net"] = init_hardnet(init_file(base_dir/"models/HardNet++.pth", 
@@ -75,7 +75,7 @@ def config(use_cuda=True, allow_download=True):
 
     config["n_clusters"] = 1400
     config["features_shape"] = 64
-    config["topk"] = 5
+    config["topk"] = 10
 
     config["kernel"] = "rbf"
     config["use_cuda"] = use_cuda
