@@ -1,4 +1,5 @@
 from skimage.measure import label
+from sklearn.decomposition import KernelPCA
 from skimage.morphology import convex_hull_image, skeletonize
 from cyvlfeat.fisher import fisher
 from PIL import Image
@@ -159,7 +160,7 @@ def patchify(dataset, config):
         patch_features = torch.from_numpy(patches/255).float().unsqueeze(1)
         if config["use_cuda"]:
             patch_features = patch_features.cuda()
-        patch_features = apply_batch_net(patch_features, net)
+        patch_features = apply_batch_net(patch_features, net, batch_size=config["batch_size"])
         all_ells.append(ells)
         inds.extend([i] * patch_features.shape[0])
         labels.append(img_label)
@@ -183,30 +184,54 @@ def fisher_multiple(db_features, db_ids, cfg):
     _, indices = np.unique(db_ids, return_inverse=True)
     encoded, _ = encode_all_images(db_features, indices, encoding_params)
     return encoded
+
+def stable_unique(a):
+    indexes = np.unique(a, return_index=True)[1]
+    return [a[index] for index in sorted(indexes)]
+
+def group_by(dataset, group_label, patches):
+    groups = stable_unique([labels[group_label] for (img, labels) in dataset])
+    mapping = {group:i for (i,group) in enumerate(groups)}
+    group_ids = len(dataset) * [None]
+    group_labels = [{'labels':[], 'class_id':None} for _ in range(len(groups))]
+    features, inds, all_ells = patches  
+    all_ells = np.array(all_ells)
+        
+        
+    for (i, (img, label)) in enumerate(dataset):
+        group_id = mapping[label[group_label]]
+        group_ids[i] = group_id
+        label['id'] = i
+        filt, = np.where(inds == i)
+        label['features'] = features[filt, :]
+        label['ellipses'] = all_ells[i]
+        group_labels[group_id]['labels'].append(label)
+        group_labels[group_id]['class_id'] = label['class_id']
+    return group_ids, group_labels
                                
                                
 
-def _encode_dataset(dataset, config, codebooks=None, sequence_ids=None, sequence_labels=None):
+def _encode_dataset(dataset, config, codebooks=None, group_label='file'):
     
-    features, inds, labels, all_ells = patchify(dataset, config)
+    features, inds, labels, ellipses = patchify(dataset, config)
     
+        
     print("Calculating PCA")
     if codebooks is None:
         features, pca = encode_pca(features, n_components=config["pca"], whiten=True)
     else:
         features = apply_pca(features, codebooks["pca"])
+    group_ids, group_labels = group_by(dataset, group_label, (features, inds, ellipses))
         
-#     try:
-#         with open("patches_nn_tonemapped.pickle", 'wb') as f_file:
-#             pickle.dump((features, inds, labels, all_ells), f_file, protocol=4)
-#     except Exception as e:
-#         print(e)
+    group = (group_ids is not None) and (group_labels is not None)    
+    if group and len(group_ids)>1:
+        groups = np.array(group_ids).squeeze()
+        updated_inds = groups[inds]
+    else:
+        updated_inds = inds
+    labels = np.array(group_labels)
         
-    seq = (sequence_ids is not None) and (sequence_labels is not None)    
-    if seq:
-        seqs = np.array(sequence_ids).squeeze()
-        inds = seqs[inds]
-
+    
     print("Getting encoding parameters...")
     if codebooks is None:
         encoding_params = get_encoding_parameters(features, n_clusters=config["n_clusters"], verbose=False)
@@ -214,8 +239,8 @@ def _encode_dataset(dataset, config, codebooks=None, sequence_ids=None, sequence
         encoding_params = codebooks["gmm"]
 
     print("Encoding...")
-    features, patch_features = encode_all_images(features, inds, encoding_params)
-    
+    features, patch_features = encode_all_images(features, updated_inds, encoding_params)
+
 
     kpca = None
     if config["use_kpca"]:
@@ -224,17 +249,14 @@ def _encode_dataset(dataset, config, codebooks=None, sequence_ids=None, sequence
             features = kpca.fit_transform(features)
         elif codebooks["kpca"] is not None:
             features = codebooks["kpca"].transform(features)
-    if seq:        
-        seq_labels = np.array(sequence_labels).squeeze()
-        labels = [seq_labels[i] for (i, feature) in enumerate(features)]
 
     if codebooks is None:
         codebooks = {'pca': pca, 'gmm': encoding_params, 'kpca': kpca}
+        
     
-    return features, labels, patch_features, all_ells, codebooks
+    return features, labels, codebooks
 
     
-
 
 def do_matching(test_feats, db_feats, percentile=10):
     dists, sorted_inds = calculate_dists(test_feats, db_feats)
@@ -254,41 +276,29 @@ def do_matching(test_feats, db_feats, percentile=10):
         filt = filt[:max_len]
     return (filt, sorted_inds, similarity)
 
-def match_topk(test_features, db_features, topk):
-    dists, inds = calculate_dists(test_features, db_features)
+def match_topk(test_features, db_features, topk, leave_one_out=False):
+    dists, inds = calculate_dists(test_features, db_features, leave_one_out=leave_one_out)
     sorted_inds = np.argsort(dists, axis=1)
     dists = np.take_along_axis(dists, sorted_inds, axis=1)
     return dists[:, :topk], sorted_inds[:, :topk]
 
 def load_codebooks(cfg):
     if cfg['codebooks'] is None:
-        with open(cfg['codebooks_path'], "rb") as codebooks_file:
+        print(cfg["codebooks_path"])
+        with open(cfg['codebooks_path'][0],"rb") as codebooks_file:
             cfg['codebooks'] = pickle.load(codebooks_file)
     return cfg['codebooks']
 
-def create_database(dataset, cfg, compute_codebooks=False):
-
-    if compute_codebooks:
-        codebooks = None
-    else:
-        codebooks = load_codebooks(cfg)
-
-    features, labels, patch_features, all_ells, codebooks = _encode_dataset(dataset, cfg, codebooks)
-
-    classes = labels
-    if hasattr(dataset,'classes'):
-        classes = [dataset.classes[i] for i in labels]
-    return (features, classes, patch_features, all_ells), codebooks
 
 
-def encode_single(image, cfg):
+def encode_single(image, label, cfg):
     if image is None:
         return image
     dataset_transforms = transforms.Grayscale(num_output_channels=1)
 
     image = dataset_transforms(image)
 
-    return encode_dataset([(image, 0)], cfg)[0][0]
+    return encode_dataset([(image, label)], cfg)
 
 
 
@@ -297,23 +307,13 @@ def encode_pipeline(input, cfg):
         return input
     return encode_dataset([input], cfg)
 
-def encode_dataset(dataset, cfg):
-    codebooks = load_codebooks(cfg)
-    query_features, query_labels, query_patch_features, query_patches, _ = _encode_dataset(dataset, cfg, codebooks)
-    return list(zip(list(zip(query_features, query_patch_features, query_patches)), query_labels))
-
-def encode_sequence_dataset(dataset, cfg):
-    if hasattr(dataset, 'get_sequence_ids'):
-        sequence_ids = dataset.get_sequence_ids()
+def encode_dataset(dataset, cfg, group_label='file', compute_codebooks=False):
+    if compute_codebooks:
+        codebooks = None
     else:
-        sequence_ids = [0 for i in dataset.data]
-    if hasattr(dataset, 'get_sequence_labels'):
-        sequence_labels = sequence_dataset.get_sequence_labels()
-    else:
-        sequence_labels = [i[1] for i in segmented_query_dataset.data]
-    codebooks = load_codebooks(cfg)
-    query_features, query_labels, query_patch_features, query_patches, _ = _encode_dataset(dataset, cfg, codebooks, sequence_ids, sequence_labels)
-    return list(zip(list(zip(query_features, query_patch_features, query_patches)), query_labels))
+        codebooks = load_codebooks(cfg)
+    query_features, query_labels, _ = _encode_dataset(dataset, cfg, codebooks, group_label)
+    return list(zip(query_features, query_labels))
 
 
 def identify_single(query, database, cfg):
@@ -325,87 +325,32 @@ def get_fisher_vectors(db):
     if hasattr(db, 'get_fisher_vectors'):
         return db.get_fisher_vectors()
     else:
-        return np.concatenate([f[np.newaxis,...] for ((f, _, _), _) in db])
+        return np.concatenate([f[np.newaxis,...] for (f, _) in db])
     
-def get_patches(db, i):
-    if hasattr(db, 'get_patches'):
-        return db.get_patches(i)
-    else:
-        return db[i][0][1:]
 
 def get_label(db, i):
     if hasattr(db, 'get_label'):
         return db.get_label(i)
     else:
         return db[i][1]
-
-def identify(query, database, cfg):
-    query_features = np.concatenate([f[np.newaxis,...] for ((f, _, _), _) in query])
-    query_patch_features = [f for ((_, f, _), _) in query]
-    query_patches = [p for ((_, _, p), _) in query]
-    query_labels = [l for ((_, _, _), l) in query]
     
-    dists, request_ids = match_topk(query_features, get_fisher_vectors(database), cfg["topk"])
-    
-    patch_matches = [None] * request_ids.shape[0]
-    for i in tqdm(range(request_ids.shape[0])):
-        patch_matches[i] = [None] * request_ids.shape[1]
-        for j in range(request_ids.shape[1]):
-            db_patch_features, db_patches = get_patches(database, request_ids[i, j])
-            (filt, sorted_inds, similarity) = do_matching(query_patch_features[i], db_patch_features)
-            patch_matches[i][j] = {"db_label": get_label(database, request_ids[i, j]), "distance": dists[i, j]}
-            patch_matches[i][j]["matches"] = [
-                [query_patches[i][k].tolist() for k in filt],
-                [db_patches[k].tolist() for k in sorted_inds],
-                similarity.tolist()
-            ]
-    
-    return list(zip(patch_matches, query_labels))
-
-
-def identify_many(query, database, cfg):
-    query_features = np.concatenate([f[np.newaxis,...] for ((f, _, _), _) in query])
-    query_patch_features = [f for ((_, f, _), _) in query]
-    query_patches = [p for ((_, _, p), _) in query]
-    query_labels = [l for ((_, _, _), l) in query]
-    
-    dists, request_ids = match_topk(query_features, database.get_fisher_vectors_seq(), cfg["topk"])
-    
-    patch_matches = [None] * request_ids.shape[0]
-    for i in tqdm(range(request_ids.shape[0])):
-        patch_matches[i] = [None] * request_ids.shape[1]
-        for j in range(request_ids.shape[1]):
-            db_patch_features, db_patches = database.get_patches_seq(request_ids[i, j])
-            patch_matches[i][j] = {"db_label": database.get_label_seq(request_ids[i, j]), "distance": dists[i, j]}
-    
-    return list(zip(patch_matches, query_labels))
-
-def find_matching_regions():
-    (filt, sorted_inds, similarity) = do_matching(query_patch_features[i], db_patch_features)
-    patch_matches[i][j]["matches"] = [
-                [query_patches[i][k].tolist() for k in filt],
-                [db_patches[k].tolist() for k in sorted_inds],
-                similarity.tolist()
-            ]
-    
-
-def encode_fast(dataset, codebooks, config):
-    features, inds, labels, all_lafs = patchify(
-        dataset, config)
-    # test_classes = []
-    # if hasattr(dataset_test,'classes'):
-    #     test_classes = [dataset_test.classes[i] for i in test_labels]
+def identify(query, database, topk=5, leave_one_out=False):
+    query_features = np.concatenate([f[np.newaxis,...] for (f, _) in query])
+    query_labels = [l for (_, l) in query]
    
-    pca = codebooks["pca"]
+    
+    dists, request_ids = match_topk(query_features, get_fisher_vectors(database), topk, leave_one_out=leave_one_out)
+    
+    matches = [None] * request_ids.shape[0]
+    for i in tqdm(range(request_ids.shape[0])):
+        matches[i] = [None] * request_ids.shape[1]
+        for j in range(request_ids.shape[1]):
+            matches[i][j] = {"db_label": get_label(database, request_ids[i, j]), "distance": dists[i, j]}
 
-    features1 = apply_pca(features, pca)
+    return list(zip(matches, query_labels))
 
-   
-    features2, patch_features = encode_all_images(features1, inds, codebooks["gmm"])
 
-    del features1, features
 
-    return features2, patch_features, all_lafs, labels, np.unique(inds)
     
 def create_sql_database(dataset, cfg, db_components, seal_type="norppa", compute_codebooks=False):
     create_database_table(cfg["conn"])

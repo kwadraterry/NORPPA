@@ -61,7 +61,7 @@ def encode(image, label):
     return  vals
 
 def call_mantiuk(img_bytes):
-    p = Popen(['pfstmo_mantiuk06'],   stdin=PIPE,      stdout=PIPE)
+    p = Popen(['pfstmo_mantiuk06', '--quiet'],   stdin=PIPE,      stdout=PIPE)
     stdout, _ = p.communicate(input=img_bytes) 
     return stdout
 

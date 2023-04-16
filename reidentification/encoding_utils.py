@@ -13,9 +13,16 @@ from base64 import encodebytes
 def cdist_std(x, y):
     return cdist(x, y, "cosine")
 
+def create_sequences_step():
+    
+    return None
 
-def calculate_dists(test_features, db_features, dist_func=cdist_std):
+
+def calculate_dists(test_features, db_features, dist_func=cdist_std, leave_one_out=False):
     dists = dist_func(test_features, db_features)
+    
+    if leave_one_out:
+        np.fill_diagonal(dists, np.max(dists))
    
     inds = np.argsort(dists, axis=1)
 
@@ -109,3 +116,6 @@ def copy_files(src,dst):
             source = os.path.join(dirpath, filename)
             destination = os.path.join(dst, filename)
             shutil.copy(source,destination)
+            
+        
+        
