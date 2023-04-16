@@ -261,6 +261,13 @@ def _encode_dataset(dataset, config, codebooks=None, group_label='file'):
 def do_matching(test_feats, db_feats, percentile=10):
     dists, sorted_inds = calculate_dists(test_feats, db_feats)
     sorted_dists = np.take_along_axis(dists, sorted_inds, axis=1)
+#     print(sorted_dists.shape)
+    print(sorted_dists.shape)
+    if test_feats.size == 0 or db_feats.size == 0:
+        print("empty")
+        return (np.array([]), np.array([]), np.array([]))
+    
+    print("Continue")
     mean_dist = np.percentile(sorted_dists[:, 0], percentile)
     filt = sorted_dists[:, 0] <= mean_dist
     sorted_inds = sorted_inds[filt, 0]
