@@ -59,7 +59,7 @@ Input args:
     line_color - color of the lines connecting the feaures
 
 """
-def visualise_match(input, cfg, path_to_load="file", uncropped=True, gap=20, n_rad=50, n_pts=10, figsize=(24, 24), inlier_color=(0.4,0.87,0.09), outlier_color=(.87, .09, .09), in_cmap="viridis", out_cmap= "inferno"):
+def visualise_match(input, cfg, path_to_load="file", uncropped=True, gap=2, n_rad=50, n_pts=10, figsize=(24, 24), inlier_color=(0.4,0.87,0.09), outlier_color=(.87, .09, .09), in_cmap="viridis", out_cmap= "inferno", filename=None):
     matches, query_label = input
 #     shift and scale query image if needed
     query_ratio = query_label["resize_ratio"]
@@ -98,6 +98,8 @@ def visualise_match(input, cfg, path_to_load="file", uncropped=True, gap=20, n_r
         plt.title(f'Distance: {match["distance"]:.5f}  Inliers: {np.sum(mask)}  Estimation: {match["Geom_Est"]:.5f}')
         plt.title(f'Query: class {query_label["class_id"]}', loc='left')
         plt.title(f'Top-{k+1}: class {db_label["class_id"]}', loc='right')
+        
+        # Separating inliers and outliers
            
         inliers_qr = [point for point, i in zip(query_patches, mask[0]) if i == 1]
         inliers_db = [point for point, i in zip(db_patches, mask[0]) if i == 1]
@@ -106,24 +108,32 @@ def visualise_match(input, cfg, path_to_load="file", uncropped=True, gap=20, n_r
         outliers_db = [point for point, i in zip(db_patches, mask[0]) if i == 0]
         
         
+        # Plotting outliers first
         for LAF_q, LAF_db, sim in zip(outliers_qr, outliers_db, similarity):
             # Intensity depends on feature similarity
     
-            max_opacity = .9*sim
+            # max opacity can be determined with the similarity parameter as well. The same applies to inlier plot loop. 
+            max_opacity = .4
+            
             p1 = ell2plotMatch(plt, LAF_q, colors_out, shift=query_shift,n_rad=n_rad, max_opacity=max_opacity, n_pts=n_pts)
             p2 = ell2plotMatch(plt, LAF_db, colors_out, shift=shift, scale=db_ratio, n_rad=n_rad, max_opacity=max_opacity, n_pts=n_pts)
             
             # draw line between patch centers
             plt.plot([p1[0], p2[0]], [p1[1], p2[1]], color=(*outlier_color, min(max_opacity* 3, 1)))
         
-        
+        # Plotting inliers
         for LAF_q, LAF_db, sim in zip(inliers_qr, inliers_db, similarity):
             
-            max_opacity = .9*sim
+            max_opacity = .4
             p1 = ell2plotMatch(plt, LAF_q, colors_in, shift=query_shift,n_rad=n_rad, max_opacity=max_opacity, n_pts=n_pts)
             p2 = ell2plotMatch(plt, LAF_db, colors_in, shift=shift, scale=db_ratio, n_rad=n_rad, max_opacity=max_opacity, n_pts=n_pts)
             
             plt.plot([p1[0], p2[0]], [p1[1], p2[1]], color=(*inlier_color, min(max_opacity* 3, 1)))
-
-        plt.show()
-    return input
+        
+        if filename:
+            plt.savefig(filename)
+        else:
+            plt.show()
+        plt.close(fig)
+        
+    return None
