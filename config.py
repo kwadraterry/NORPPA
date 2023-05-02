@@ -1,4 +1,4 @@
-    
+import os
 import sys
 from pathlib import Path
 
@@ -29,7 +29,13 @@ def config(use_cuda=True, allow_download=True):
     
     path_db = mount_path + "DB_test.db"
     config["conn"] = create_connection(path_db)
-
+    config["detectron_predictor"] = create_predictor(init_file(base_dir/"models/R-101-FPN_150ims.pth",  
+                                    "https://github.com/kwadraterry/NORPPA/raw/models/models/R-101-FPN_150ims.pth", 
+                                    allow_download=allow_download),
+                                    not  use_cuda )
+    config["unet"] = create_unet(init_file(base_dir/"models/unet_seals_512.hdf5",  
+                                            "https://github.com/kwadraterry/NORPPA/raw/models/models/unet_seals_512.hdf5", 
+                                            allow_download=allow_download))
     config["net"] = init_hardnet(init_file(base_dir/"models/HardNet++.pth", 
                                             "https://github.com/kwadraterry/NORPPA/raw/models/models/HardNet++.pth", 
                                             allow_download=allow_download), 
@@ -42,10 +48,10 @@ def config(use_cuda=True, allow_download=True):
                                             "https://github.com/kwadraterry/NORPPA/raw/models/models/OriNet.pth", 
                                             allow_download=allow_download), 
                                 use_cuda=use_cuda)
-    codebooks_path = init_file(base_dir/'codebooks/norppa.pickle',
+    codebooks_path = init_file(base_dir/'codebooks/codebooks.pickle',
                                "https://github.com/kwadraterry/NORPPA/raw/models/codebooks/codebooks.pickle", 
                                allow_download=allow_download)
-    config["codebooks_path"] = codebooks_path 
+    config["codebooks_path"] = Path(base_dir/"codebooks/norppa.pickle"),
     config["codebooks"] = None
     config["hesaff_args"] = {'init_sigma': 1.3213713243956968, 
                             'mrSize': 9.348280997446642, 
@@ -54,13 +60,6 @@ def config(use_cuda=True, allow_download=True):
                             'unsharp_amount': 6.80631647207343, 
                             'unsharp_radius': None,
                             'use_cuda' :use_cuda}
-    config["detectron_predictor"] = create_predictor(init_file(base_dir/"models/R-101-FPN_150ims.pth",  
-                                            "https://github.com/kwadraterry/NORPPA/raw/models/models/R-101-FPN_150ims.pth", 
-                                            allow_download=allow_download),
-                                not use_cuda)
-    config["unet"] = create_unet(init_file(base_dir/"models/unet_seals_512.hdf5",  
-                                            "https://github.com/kwadraterry/NORPPA/raw/models/models/unet_seals_512.hdf5", 
-                                            allow_download=allow_download))
     config["hesaff_args"]["AffNet"] = affnet
     config["hesaff_args"]["OriNet"] = orinet
 
@@ -80,6 +79,7 @@ def config(use_cuda=True, allow_download=True):
     config["kernel"] = "rbf"
     config["use_cuda"] = use_cuda
     config["dataset_dir"] = base_dir/'data'
+    config["sequence_dataset_dir"] = '/ekaterina/work/data/many_dataset/original_small'
 
     config["batch_size"] = 256
 

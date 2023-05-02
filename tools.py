@@ -33,12 +33,12 @@ def apply_pipeline(image, label, pipeline):
     return apply_step((image, label), pipeline[0], pipeline[1:])
 
 
-def apply_pipeline_cocodataset(cocodataset, pipeline, verbose=False):
-    result = []
-    for (i, (img, data)) in enumerate(cocodataset):
-        result.extend(apply_pipeline(img, data, pipeline))
+def apply_pipeline_dataset(dataset, pipeline, verbose=False):
+    result = dataset
+    for (i,step) in enumerate(pipeline):
+        result = step(result)
         if verbose:
-            print(f"Completed {i+1}/{len(cocodataset)} images")
+            print(f"Completed {i+1}/{len(pipeline)} steps")
     return result
 
 def process(SOURCE_DIR, pipeline):
@@ -54,6 +54,20 @@ def process(SOURCE_DIR, pipeline):
 def curry(func, *params, **kw):
     return lambda x: func(x, *params, **kw)
 
+def cat(array):
+    return [y for x in array for y in x]
+
+def apply_sequential(func):
+    return lambda dataset: cat([func(x) for x in dataset])
+
+def curry_sequential(func, *params, **kw):
+    return apply_sequential(curry(func, *params, **kw))
+
+def compose(*funcs):
+    return curry(apply_step, step=funcs[0], rest=funcs[1:])
+
+def compose_sequential(*funcs):
+    return apply_sequential(compose(*funcs))
 
 def save_id_result(result, source_dir, dest_path):
     res_json_path = os.path.join(dest_path, 'result.json')
@@ -239,3 +253,26 @@ def read_image(path):
     except IOError:
         print(f'IOError when reading "{path}"')
     return img
+
+def get_topk_matrix(identification_result):
+    result = []
+    for (db_labels, q_labels) in (identification_result):
+        q_class = q_labels['class_id']
+        
+        q_ln = len(q_labels['labels'])
+        
+        
+        result.extend([[db_label['db_label']['class_id']==q_class for db_label in db_labels]]*q_ln)
+    topk = len(identification_result[0][0])
+    return (np.asarray(result), topk)
+
+def calculate_accuracy(result, max_topk=None):
+
+    topk_matrix, topk = get_topk_matrix(result)
+
+    topk = max_topk if max_topk is not None else topk
+    print(f'TOP-k={topk}')
+    hits = topk_matrix 
+    # hits = (db_labels.T == q_labels).T
+    print([sum((np.sum(hits[:, :j+1], axis=1) > 0)) / len(topk_matrix)
+            for j in range(topk)])

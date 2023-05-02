@@ -10,7 +10,6 @@ def add_instance_info(label, instance, num_instances):
         return (label, instance)
 
 def segment(input, predictor, instance_segmentation=False):
-
     image, img_label = input
     if image is None:
         return [input]
