@@ -262,12 +262,10 @@ def do_matching(test_feats, db_feats, percentile=10):
     dists, sorted_inds = calculate_dists(test_feats, db_feats)
     sorted_dists = np.take_along_axis(dists, sorted_inds, axis=1)
 #     print(sorted_dists.shape)
-    print(sorted_dists.shape)
     if test_feats.size == 0 or db_feats.size == 0:
         print("empty")
         return (np.array([]), np.array([]), np.array([]))
     
-    print("Continue")
     mean_dist = np.percentile(sorted_dists[:, 0], percentile)
     filt = sorted_dists[:, 0] <= mean_dist
     sorted_inds = sorted_inds[filt, 0]
@@ -292,7 +290,7 @@ def match_topk(test_features, db_features, topk, leave_one_out=False):
 def load_codebooks(cfg):
     if cfg['codebooks'] is None:
         print(cfg["codebooks_path"])
-        with open(cfg['codebooks_path'][0],"rb") as codebooks_file:
+        with open(cfg['codebooks_path'],"rb") as codebooks_file:
             cfg['codebooks'] = pickle.load(codebooks_file)
     return cfg['codebooks']
 
@@ -319,8 +317,11 @@ def encode_dataset(dataset, cfg, group_label='file', compute_codebooks=False):
         codebooks = None
     else:
         codebooks = load_codebooks(cfg)
-    query_features, query_labels, _ = _encode_dataset(dataset, cfg, codebooks, group_label)
-    return list(zip(query_features, query_labels))
+    query_features, query_labels, codebooks = _encode_dataset(dataset, cfg, codebooks, group_label)
+    if compute_codebooks:
+        return (codebooks, list(zip(query_features, query_labels)))
+    else:
+        return list(zip(query_features, query_labels))
 
 
 def identify_single(query, database, cfg):

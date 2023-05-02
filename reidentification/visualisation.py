@@ -100,9 +100,9 @@ def visualise_match(input, cfg, path_to_load="file", uncropped=True, gap=20, n_r
         db_data = db_label["labels"][match["db_ind"]]
         db_img = Image.open(db_data[path_to_load])
         db_img, ratio = resize_to_img(db_img, query_img)
-        db_ratio = ratio/db_data["resize_ratio"]
+        db_ratio = ratio/db_data.get("resize_ratio", 1)
         
-        shift = [x*ratio for x in (db_data["bb"][:2] if uncropped else [0, 0])]
+        shift = [x*ratio for x in (db_data.get("bb", [0, 0])[:2] if uncropped else [0, 0])]
         shift = (shift[0], shift[1] + query_img.size[1] + gap)
         full_img = Image.new('RGB', (query_img.size[0], query_img.size[1]+db_img.size[1]+gap), color="white")
         full_img.paste(query_img, (0, 0))
