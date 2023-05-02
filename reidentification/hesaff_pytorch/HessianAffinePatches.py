@@ -48,12 +48,21 @@ def LAF2ell(LAF):
     return np.array([LAF[0, 2], LAF[1, 2], s[0], s[1], angle])
 
 def extract_hesaff_patches(img_detect, 
-                           num_features=400, nlevels=10, 
-                           mrSize=12, border=5, 
+                           num_features=400, 
+                           nlevels=10, 
+#                            mrSize=12, 
+                           mrSize=12,
+#                            border=5, 
+                           border=5,
                            num_Baum_iters=26, 
-                           patch_size=48, init_sigma=1.6, 
-                           unsharp_radius=1, unsharp_amount=25, 
-                           RespNet=None, OriNet=None, AffNet=None, 
+                           patch_size=48, 
+#                            init_sigma=1.6, 
+                           init_sigma = 200,
+                           unsharp_radius=1, 
+                           unsharp_amount=25, 
+                           RespNet=None, 
+                           OriNet=None, 
+                           AffNet=None, 
                            use_cuda=True):
     
     HA = ScaleSpaceAffinePatchExtractor(nlevels=int(nlevels),
