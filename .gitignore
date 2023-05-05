@@ -135,3 +135,6 @@ output/
 models/
 data/
 temp/
+
+*.pth
+*.ckpt

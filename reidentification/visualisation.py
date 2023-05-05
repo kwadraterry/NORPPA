@@ -1,6 +1,9 @@
 from PIL import Image
 import matplotlib.pyplot as plt
 import numpy as np
+from reidentification.identify import fisher_single, do_matching
+from reidentification.encoding_utils import calculate_dists
+
 
 def rescale_img(img, scale):
     return img.resize([int(s*scale) for s in img.size], Image.Resampling.LANCZOS)
@@ -45,25 +48,46 @@ def ell2plotMatch(plt, ell, colors, shift=[0, 0], scale=1, n_rad=15, max_opacity
 #         return the x,y of ellipse center
     return [shift[0] + ell[0] * scale, shift[1] + ell[1] * scale]
 
+def find_matches(identification_result, cfg):
+    matches, query_labels = identification_result
+    query_images = query_labels["labels"]
+    query_fishers = [fisher_single(query_image['features'],cfg)  for query_image in query_images]
+    db_encodings = []
+    for (j,match) in enumerate(matches):
+        db_images = match["db_label"]["labels"]
+        db_fishers = [fisher_single(db_image['features'],cfg)  for db_image in db_images]
+        
+        (dists, _) = calculate_dists(query_fishers, db_fishers)
+        dists = np.nan_to_num(dists, nan=2)
+        ind1, ind2 = np.unravel_index(np.argmin(dists, axis=None), dists.shape)
+ 
 
-"""
-Function to draw matches between query and datatbase images
-Input args:
-    input - (matches[], query_label{})
-    path_to_load - key that corresponds to the filepath in label dictionary
-    uncropped - bool
-    gap - gap between query and database images on visualisation
-    n_rad - number of layers in ellipse
-    n_pts - number of points for ellipse plotting
-    figsize - size of the plot
-    line_color - color of the lines connecting the feaures
+        query_patch_features = query_images[ind1]['features']
+        db_patch_features = db_images[ind2]['features']
+        
+        query_ellipses = query_images[ind1]['ellipses']
+        db_ellipses = db_images[ind2]['ellipses']
 
-"""
-def visualise_match(input, cfg, path_to_load="file", uncropped=True, gap=2, n_rad=50, n_pts=10, figsize=(24, 24), inlier_color=(0.4,0.87,0.09), outlier_color=(.87, .09, .09), in_cmap="viridis", out_cmap= "inferno", filename=None):
-    matches, query_label = input
-#     shift and scale query image if needed
-    query_ratio = query_label["resize_ratio"]
-    query_shift = query_label["bb"][:2] if uncropped else [0, 0]
+        (filt, sorted_inds, similarity) = do_matching(query_patch_features, db_patch_features)
+        matches[j]["db_ind"] = ind2
+        matches[j]["query_ind"] = ind1
+        matches[j]["patches"] = [
+            [query_ellipses[k].tolist() for k in filt],
+            [db_ellipses[k].tolist() for k in sorted_inds],
+            similarity.tolist()
+        ]
+    return (matches, query_labels)
+            
+
+def prepare_query(query_label, uncropped, path_to_load):
+    if query_label.get("resize_ratio", 0) != 0:
+        query_ratio = query_label["resize_ratio"]
+    else:
+        query_ratio = 1
+    if uncropped and query_label.get("bb", 0) != 0:
+        query_shift = query_label["bb"][:2]
+    else:
+        query_shift = [0, 0]
     query_shift = [x*query_ratio for x in query_shift]
     query_img = rescale_img(Image.open(query_label[path_to_load]), query_ratio)
     
@@ -71,15 +95,18 @@ def visualise_match(input, cfg, path_to_load="file", uncropped=True, gap=2, n_ra
     for k, match in enumerate(matches[0:cfg["topk"]]):
         fig = plt.figure(figsize=figsize)
         db_label = match["db_label"]
-        query_patches, db_patches, similarity = match["matches"]
+        query_label = query_labels["labels"][match["query_ind"]]
         
-#         open db image and resize to query image
-        db_img = Image.open(db_label[path_to_load])
+        query_img, query_shift, query_ratio = prepare_query(query_label, uncropped, path_to_load)
+        
+        query_patches, db_patches, similarity = match["patches"]
+        
+        db_data = db_label["labels"][match["db_ind"]]
+        db_img = Image.open(db_data[path_to_load])
         db_img, ratio = resize_to_img(db_img, query_img)
-        db_ratio = ratio/db_label["resize_ratio"]
+        db_ratio = ratio/db_data.get("resize_ratio", 1)
         
-#         shift for features on the right image
-        shift = [x*ratio for x in (db_label["bb"][:2] if uncropped else [0, 0])]
+        shift = [x*ratio for x in (db_data.get("bb", [0, 0])[:2] if uncropped else [0, 0])]
         shift = (shift[0], shift[1] + query_img.size[1] + gap)
         
 #         create new image for visualisation. It will contain both query and db image
@@ -136,4 +163,4 @@ def visualise_match(input, cfg, path_to_load="file", uncropped=True, gap=2, n_ra
             plt.show()
         plt.close(fig)
         
-    return None
+    return [input]
