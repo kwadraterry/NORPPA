@@ -12,6 +12,7 @@ from torchvision import transforms
 
 import pickle
 from reidentification.encoding_utils import *
+from reidentification.geometric import *
 import numpy as np
 import torchvision.datasets as dset
 import gc
@@ -287,10 +288,11 @@ def do_matching(test_feats, db_feats, percentile=10):
 def do_matching_geom(test_feats, test_patches, db_feats, db_patches, percentile=10):
     pass
 
-def match_topk(test_features, db_features, topk):
-    dists, inds = calculate_dists(test_features, db_features)
+def match_topk(test_features, db_features, topk, leave_one_out=False):
+    dists, inds = calculate_dists(test_features, db_features, leave_one_out=leave_one_out)
     sorted_inds = np.argsort(dists, axis=1)
     dists = np.take_along_axis(dists, sorted_inds, axis=1)
+    print(topk)
     return dists[:, :topk], sorted_inds[:, :topk]
 
 def load_codebooks(cfg):
@@ -348,50 +350,11 @@ def get_label(db, i):
     else:
         return db[i][1]
 
-def identify(query, database, cfg, est_cfg):
-    query_features = np.concatenate([f[np.newaxis,...] for ((f, _, _), _) in query])
-    query_patch_features = [f for ((_, f, _), _) in query]
-    query_patches = [p for ((_, _, p), _) in query]
-    query_labels = [l for ((_, _, _), l) in query]
     
-    dists, request_ids = match_topk(query_features, get_fisher_vectors(database), cfg["topk"])
-    
-    patch_matches = [None] * request_ids.shape[0]
-    for i in tqdm(range(request_ids.shape[0])):
-        
-        patch_matches[i] = [None] * request_ids.shape[1]
-        
-        for j in range(request_ids.shape[1]):
-            
-            db_patch_features, db_patches = get_patches(database, request_ids[i, j])
-            
-            (filt, sorted_inds, similarity) = do_matching(query_patch_features[i], db_patch_features)
-            
-            patch_matches[i][j] = {"db_label": get_label(database, request_ids[i, j]), "distance": dists[i, j]}
-            
-            patch_matches[i][j]["matches"] = [
-                [query_patches[i][k].tolist() for k in filt],
-                [db_patches[k].tolist() for k in sorted_inds],
-                similarity.tolist()
-            ]
-            
-        # GEOMETRIC RE-IDENTIFICATION
-        # (created functions at the end of this file)
-        if (est_cfg): 
-            order = re_evaluate(patch_matches[i], est_cfg)
-            for est, mask, k in order:
-                patch_matches[i][k]["Geom_Est"] = est
-                patch_matches[i][k]["Mask"] = mask
-            patch_matches[i] = [patch_matches[i][k] for _, _, k in order]
-    
-    return list(zip(patch_matches, query_labels))
-
-
-def identify_many(query, database, cfg):
-    query_features = np.concatenate([f[np.newaxis,...] for ((f, _, _), _) in query])
-    query_patch_features = [f for ((_, f, _), _) in query]
-    query_patches = [p for ((_, _, p), _) in query]
-    query_labels = [l for ((_, _, _), l) in query]
+def identify(query, database, topk=5, leave_one_out=False):
+    query_features = np.concatenate([f[np.newaxis,...] for (f, _) in query])
+    query_labels = [l for (_, l) in query]
+   
     
     dists, request_ids = match_topk(query_features, get_fisher_vectors(database), topk, leave_one_out=leave_one_out)
     
@@ -400,8 +363,51 @@ def identify_many(query, database, cfg):
         matches[i] = [None] * request_ids.shape[1]
         for j in range(request_ids.shape[1]):
             matches[i][j] = {"db_label": get_label(database, request_ids[i, j]), "distance": dists[i, j]}
-
+    
     return list(zip(matches, query_labels))
+
+# def identify(query, database, topk=5, leave_one_out=False, geometric=True):
+#     query_features = np.concatenate([f[np.newaxis,...] for ((f, _, _), _) in query])
+#     query_patch_features = [f for ((_, f, _), _) in query]
+#     query_patches = [p for ((_, _, p), _) in query]
+#     query_labels = [l for ((_, _, _), l) in query]
+    
+#     dists, request_ids = match_topk(query_features, get_fisher_vectors(database), cfg["topk"])
+    
+#     patch_matches = [None] * request_ids.shape[0]
+#     for i in tqdm(range(request_ids.shape[0])):
+        
+#         patch_matches[i] = [None] * request_ids.shape[1]
+        
+#         for j in range(request_ids.shape[1]):
+            
+#             db_patch_features, db_patches = get_patches(database, request_ids[i, j])
+            
+#             (filt, sorted_inds, similarity) = do_matching(query_patch_features[i], db_patch_features)
+            
+#             patch_matches[i][j] = {"db_label": get_label(database, request_ids[i, j]), "distance": dists[i, j]}
+            
+#             patch_matches[i][j]["matches"] = [
+#                 [query_patches[i][k].tolist() for k in filt],
+#                 [db_patches[k].tolist() for k in sorted_inds],
+#                 similarity.tolist()
+#             ]
+            
+#         # GEOMETRIC RE-IDENTIFICATION
+#         # (created functions at the end of this file)
+#         if (geometric): 
+            
+    
+#     return list(zip(patch_matches, query_labels))
+
+def apply_geometric(input, params):
+    matches, query_labels = input
+    order = re_evaluate(matches, params)
+    for est, mask, k in order:
+        matches[k]["Geom_Est"] = est
+        matches[k]["Mask"] = mask
+    matches = [matches[k] for _, _, k in order]
+    return [(matches, query_labels)]
 
 
 
@@ -432,81 +438,4 @@ def create_sql_database(dataset, cfg, db_components, seal_type="norppa", compute
     cfg["conn"].commit()
 
 
-    
-### GEOMETRIC RE-IDENTIFICATION ###
 
-# Re-orders original results. Returns the new order of indices.
-def re_evaluate(matches, est_cfg):
-
-    dists = [match["distance"] for match in matches]
-    inliers = geometric_verification(matches, est_cfg)
-    
-    order = [(est_cfg["estimator"](dist, mask), mask, i) for i, (dist, mask) in enumerate(zip(dists, inliers))]
-    order.sort(key = lambda x: (x[0], x[2]))
-    
-    return order
-
-
-# Returns the logical array presenting inlier point correspondences, inliers set to 1 and outliers set to 0.
-def geometric_verification(matches, est_cfg):
-    
-    qr_patches_all = [match["matches"][0] for match in matches]
-    db_patches_all = [match["matches"][1] for match in matches]
-    
-    qr_coordinates, db_coordinates = get_coordinates(qr_patches_all,
-                                                     db_patches_all)
-    homographies, inliers = estimate_homographies(qr_coordinates,
-                                                  db_coordinates,
-                                                  est_cfg)
-    
-    return inliers
-
-
-# Extracts the x,y point correspondences and translate and scale point sets inside unit circle.
-def get_coordinates(qr_patches_all, db_patches_all):
-    
-    # get xy-pairs
-    qr_all = np.array([np.array([[qr[0], qr[1]] for qr in qr_patches]) 
-                       for qr_patches in qr_patches_all])
-    
-    db_all = np.array([np.array([[db[0], db[1]] for db in db_patches]) 
-                       for db_patches in db_patches_all])
-    
-    # translate to origin
-    qr_mean = np.array([np.mean(qr_coords, axis=0) for qr_coords in qr_all])
-    db_mean = np.array([np.mean(db_coords, axis=0) for db_coords in db_all])
-    for i, (qr, db) in enumerate(zip(qr_mean, db_mean)):
-        qr_all[i] -= qr
-        db_all[i] -= db
-    
-    # set |p| <= 1
-    max_l_qr = [max(qr, key=lambda p: np.linalg.norm(p)) for qr in qr_all]
-    max_l_db = [max(db, key=lambda p: np.linalg.norm(p)) for db in db_all]
-    for i, (qr, db) in enumerate(zip(max_l_qr, max_l_db)):
-        a, b = np.linalg.norm(qr), np.linalg.norm(db)
-        qr_all[i] /= a if a > np.finfo(float).eps else 1
-        db_all[i] /= b if b > np.finfo(float).eps else 1
-    
-    return qr_all, db_all
-
-
-# Finds homographies for each query-database image pairs.
-def estimate_homographies(qr_coords_all,
-                          db_coords_all,
-                          est_cfg):
-
-    models = [
-        cv2.findHomography(qr_coords,
-                           db_coords,
-                           method=est_cfg["method"],
-                           ransacReprojThreshold=est_cfg["max_reproj_err"],
-                           maxIters=est_cfg["max_iters"])
-        for qr_coords, db_coords in zip(qr_coords_all, db_coords_all)
-    ]
-    
-    homographies = [H for H, _ in models]
-    inliers = [I for _, I in models]
-    
-    return homographies, inliers
-
-### GEOMETRIC RE-IDENTIFICATION EOF ###

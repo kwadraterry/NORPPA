@@ -1,6 +1,8 @@
 import os
 import sys
 from pathlib import Path
+import cv2
+import numpy as np
 
 file_folder = Path(__file__).resolve().parent
 sys.path.append(str(file_folder / "reidentification/hesaff_pytorch"))
@@ -25,7 +27,7 @@ def config(use_cuda=True, allow_download=True):
 
     config =  {}     
     base_dir = Path(__file__).resolve().parent
-    mount_path = "/veikka_immonen/work/data/"
+    mount_path = "/ekaterina/work/data/"
     
     path_db = mount_path + "DB.db"
     config["conn"] = create_connection(path_db)
@@ -51,7 +53,7 @@ def config(use_cuda=True, allow_download=True):
     codebooks_path = init_file(base_dir/'codebooks/codebooks.pickle',
                                "https://github.com/kwadraterry/NORPPA/raw/models/codebooks/codebooks.pickle", 
                                allow_download=allow_download)
-    config["codebooks_path"] = Path(base_dir/"codebooks/norppa.pickle"),
+    config["codebooks_path"] = Path(base_dir/"codebooks/norppa.pickle")
     config["codebooks"] = None
     config["hesaff_args"] = {'init_sigma': 1.3213713243956968, 
                             'mrSize': 9.348280997446642, 
@@ -82,5 +84,12 @@ def config(use_cuda=True, allow_download=True):
     config["sequence_dataset_dir"] = '/ekaterina/work/data/many_dataset/original_small'
 
     config["batch_size"] = 256
+    
+    config["geometric"] = {
+        "method": cv2.RANSAC,
+        "max_iters": 5000,
+        "max_reproj_err": .1,
+        "estimator": lambda d, mask: d ** np.sum(mask)
+    }
 
     return config
