@@ -73,7 +73,6 @@ class SimpleDataset(Dataset):
                 dataset_dir):
         
         self.dataset_dir = dataset_dir
-
         self.data = self._get_data(dataset_dir)
         self.classes = list(self._get_classes(self.data))
 
@@ -92,7 +91,6 @@ class SimpleDataset(Dataset):
     def _get_data(self, dataset_dir):
         dataset_dir = Path(dataset_dir)
         result = []
-        
         for class_dir in [x for x in dataset_dir.iterdir() if x.is_dir()]:
             for img in class_dir.iterdir():
                 result.append((str(img), class_dir.name))

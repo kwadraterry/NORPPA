@@ -1,6 +1,8 @@
 import os
 import sys
 from pathlib import Path
+import cv2
+import numpy as np
 
 file_folder = Path(__file__).resolve().parent
 sys.path.append(str(file_folder / "reidentification/hesaff_pytorch"))
@@ -25,9 +27,9 @@ def config(use_cuda=True, allow_download=True):
 
     config =  {}     
     base_dir = Path(__file__).resolve().parent
-    mount_path = "/ekaterina/work/data/many_dataset/"
+    mount_path = "/ekaterina/work/data/"
     
-    path_db = mount_path + "DB_test.db"
+    path_db = mount_path + "DB.db"
     config["conn"] = create_connection(path_db)
     config["detectron_predictor"] = create_predictor(init_file(base_dir/"models/R-101-FPN_150ims.pth",  
                                     "https://github.com/kwadraterry/NORPPA/raw/models/models/R-101-FPN_150ims.pth", 
@@ -51,7 +53,7 @@ def config(use_cuda=True, allow_download=True):
     codebooks_path = init_file(base_dir/'codebooks/codebooks.pickle',
                                "https://github.com/kwadraterry/NORPPA/raw/models/codebooks/codebooks.pickle", 
                                allow_download=allow_download)
-    config["codebooks_path"] = Path(base_dir/"codebooks/norppa.pickle"),
+    config["codebooks_path"] = Path(base_dir/"codebooks/norppa.pickle")
     config["codebooks"] = None
     config["hesaff_args"] = {'init_sigma': 1.3213713243956968, 
                             'mrSize': 9.348280997446642, 
@@ -74,7 +76,7 @@ def config(use_cuda=True, allow_download=True):
 
     config["n_clusters"] = 1400
     config["features_shape"] = 64
-    config["topk"] = 5
+    config["topk"] = 10
 
     config["kernel"] = "rbf"
     config["use_cuda"] = use_cuda
@@ -82,5 +84,12 @@ def config(use_cuda=True, allow_download=True):
     config["sequence_dataset_dir"] = '/ekaterina/work/data/many_dataset/original_small'
 
     config["batch_size"] = 256
+    
+    config["geometric"] = {
+        "method": cv2.RANSAC,
+        "max_iters": 5000,
+        "max_reproj_err": .1,
+        "estimator": lambda d, mask: d ** np.sum(mask)
+    }
 
     return config

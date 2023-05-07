@@ -12,11 +12,15 @@ from torchvision import transforms
 
 import pickle
 from reidentification.encoding_utils import *
+from reidentification.geometric import *
 import numpy as np
 import torchvision.datasets as dset
 import gc
 from datasets import DatasetSlice
 import pickle
+
+import cv2
+import itertools as it
 
 from HessianAffinePatches import extract_hesaff_patches
 
@@ -281,10 +285,14 @@ def do_matching(test_feats, db_feats, percentile=10):
         filt = filt[:max_len]
     return (filt, sorted_inds, similarity)
 
+def do_matching_geom(test_feats, test_patches, db_feats, db_patches, percentile=10):
+    pass
+
 def match_topk(test_features, db_features, topk, leave_one_out=False):
     dists, inds = calculate_dists(test_features, db_features, leave_one_out=leave_one_out)
     sorted_inds = np.argsort(dists, axis=1)
     dists = np.take_along_axis(dists, sorted_inds, axis=1)
+    print(topk)
     return dists[:, :topk], sorted_inds[:, :topk]
 
 def load_codebooks(cfg):
@@ -341,6 +349,7 @@ def get_label(db, i):
         return db.get_label(i)
     else:
         return db[i][1]
+
     
 def identify(query, database, topk=5, leave_one_out=False):
     query_features = np.concatenate([f[np.newaxis,...] for (f, _) in query])
@@ -354,8 +363,51 @@ def identify(query, database, topk=5, leave_one_out=False):
         matches[i] = [None] * request_ids.shape[1]
         for j in range(request_ids.shape[1]):
             matches[i][j] = {"db_label": get_label(database, request_ids[i, j]), "distance": dists[i, j]}
-
+    
     return list(zip(matches, query_labels))
+
+# def identify(query, database, topk=5, leave_one_out=False, geometric=True):
+#     query_features = np.concatenate([f[np.newaxis,...] for ((f, _, _), _) in query])
+#     query_patch_features = [f for ((_, f, _), _) in query]
+#     query_patches = [p for ((_, _, p), _) in query]
+#     query_labels = [l for ((_, _, _), l) in query]
+    
+#     dists, request_ids = match_topk(query_features, get_fisher_vectors(database), cfg["topk"])
+    
+#     patch_matches = [None] * request_ids.shape[0]
+#     for i in tqdm(range(request_ids.shape[0])):
+        
+#         patch_matches[i] = [None] * request_ids.shape[1]
+        
+#         for j in range(request_ids.shape[1]):
+            
+#             db_patch_features, db_patches = get_patches(database, request_ids[i, j])
+            
+#             (filt, sorted_inds, similarity) = do_matching(query_patch_features[i], db_patch_features)
+            
+#             patch_matches[i][j] = {"db_label": get_label(database, request_ids[i, j]), "distance": dists[i, j]}
+            
+#             patch_matches[i][j]["matches"] = [
+#                 [query_patches[i][k].tolist() for k in filt],
+#                 [db_patches[k].tolist() for k in sorted_inds],
+#                 similarity.tolist()
+#             ]
+            
+#         # GEOMETRIC RE-IDENTIFICATION
+#         # (created functions at the end of this file)
+#         if (geometric): 
+            
+    
+#     return list(zip(patch_matches, query_labels))
+
+def apply_geometric(input, params):
+    matches, query_labels = input
+    order = re_evaluate(matches, params)
+    for est, mask, k in order:
+        matches[k]["Geom_Est"] = est
+        matches[k]["Mask"] = mask
+    matches = [matches[k] for _, _, k in order]
+    return [(matches, query_labels)]
 
 
 
@@ -384,3 +436,6 @@ def create_sql_database(dataset, cfg, db_components, seal_type="norppa", compute
     del db_labels
     gc.collect()
     cfg["conn"].commit()
+
+
+
