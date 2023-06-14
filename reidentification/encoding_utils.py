@@ -22,7 +22,7 @@ def calculate_dists(test_features, db_features, dist_func=cdist_std, leave_one_o
     dists = dist_func(test_features, db_features)
     
     if leave_one_out:
-        np.fill_diagonal(dists, np.max(dists))
+        np.fill_diagonal(dists, np.max(dists)+1)
    
     inds = np.argsort(dists, axis=1)
 

@@ -60,6 +60,7 @@ def extract_hesaff_patches(img_detect,
                            init_sigma = 200,
                            unsharp_radius=1, 
                            unsharp_amount=25, 
+                           patch_scale=1,
                            RespNet=None, 
                            OriNet=None, 
                            AffNet=None, 
@@ -74,7 +75,8 @@ def extract_hesaff_patches(img_detect,
                                         init_sigma=init_sigma,
                                         AffNet=AffNet,
                                         OriNet=OriNet,
-                                        RespNet=RespNet)
+                                        RespNet=RespNet,
+                                       patch_scale=patch_scale)
 
     var_image_detect = torch.autograd.Variable(torch.from_numpy(np.array(img_detect).astype(np.float32)))
     var_image_detect = var_image_detect.view(1, 1, var_image_detect.size(0),var_image_detect.size(1))

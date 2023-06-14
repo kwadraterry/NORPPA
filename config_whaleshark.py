@@ -1,6 +1,8 @@
     
 import sys
 from pathlib import Path
+import cv2
+import numpy as np
 
 file_folder = Path(__file__).resolve().parent
 sys.path.append(str(file_folder / "reidentification/hesaff_pytorch"))
@@ -45,7 +47,7 @@ def config(use_cuda=True, allow_download=True):
     codebooks_path = init_file(base_dir/'codebooks/codebooks.pickle',
                                "https://github.com/kwadraterry/NORPPA/raw/models/codebooks/codebooks.pickle", 
                                allow_download=allow_download)
-    config["codebooks_path"] =  Path("/ekaterina/work/src/NORPPA/repository/NORPPA/codebooks/whaleshark_tonemapped.pickle")
+    config["codebooks_path"] =  Path("/ekaterina/work/src/NORPPA/repository/NORPPA/codebooks/whaleshark_tonemapped_harrisz.pickle")
     config["codebooks"] = None
     config["hesaff_args"] = {'init_sigma': 1.3213713243956968, 
                             'mrSize': 9.348280997446642, 
@@ -53,7 +55,8 @@ def config(use_cuda=True, allow_download=True):
                             'num_features': 480, 
                             'unsharp_amount': 6.80631647207343, 
                             'unsharp_radius': None,
-                            'use_cuda' :use_cuda}
+                            'use_cuda' :use_cuda,
+                            'patch_scale': 2}
     config["detectron_predictor"] = create_predictor(init_file(base_dir/"models/R-101-FPN_150ims.pth",  
                                             "https://github.com/kwadraterry/NORPPA/raw/models/models/R-101-FPN_150ims.pth", 
                                             allow_download=allow_download),
@@ -66,8 +69,10 @@ def config(use_cuda=True, allow_download=True):
 
     config["hesaff_args"]["patch_size"] = 32
 
+    config["sift_args"] = {'patch_size': 32}
 
-    config["use_hesaff"] = True
+    config["use_hesaff"] = False
+    config["patch_extraction"] = "sift"
     
 
     config["pca"] = 64
@@ -82,5 +87,12 @@ def config(use_cuda=True, allow_download=True):
     config["dataset_dir"] = base_dir/'data'
 
     config["batch_size"] = 256
+    
+    config["geometric"] = {
+        "method": cv2.RANSAC,
+        "max_iters": 5000,
+        "max_reproj_err": .2,
+        "estimator": lambda d, mask: d ** np.sum(mask)
+    }
 
     return config

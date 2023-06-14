@@ -192,6 +192,9 @@ def change_dir(path, new_dir):
 def get_save_step(dest_dir):
     return lambda x: save_step(x, dest_dir)
 
+def get_save_step(dest_dir, new_path_name=None):
+    return curry_sequential(save_step, dest_dir, new_path_name=new_path_name)
+
 def test_save_step(dest_dir):
     return lambda x: test_step(x, dest_dir)
 
@@ -216,7 +219,7 @@ def save_step(input, dest_dir, new_path_name=None):
         else:
             new_path = change_dir(label['file'], dest_dir)
         os.makedirs(os.path.dirname(new_path), exist_ok = True) 
-        image.save(new_path)
+        image.save(new_path, format="png")
         if type(label) is dict and new_path_name is not None:
             label[new_path_name] = new_path
     return [(image, label)]
@@ -276,3 +279,44 @@ def calculate_accuracy(result, max_topk=None):
     # hits = (db_labels.T == q_labels).T
     print([sum((np.sum(hits[:, :j+1], axis=1) > 0)) / len(topk_matrix)
             for j in range(topk)])
+    
+def get_topk_matrix(identification_result):
+    result = []
+    for (db_labels, q_labels) in identification_result:
+        q_class = q_labels['class_id']
+        q_ln = len(q_labels['labels'])
+        result.append([db_label['db_label']['class_id']==q_class for db_label in db_labels]*q_ln)
+    return np.asarray(result)
+
+
+def get_topk_accuracy(identification_result):
+    result = []
+    for (db_labels, q_labels) in identification_result:
+        q_class = q_labels['class_id']
+        q_ln = len(q_labels['labels'])
+        result.append([db_label['db_label']['class_id']==q_class for db_label in db_labels]*q_ln)
+    result = np.asarray(result)
+    return [sum((np.sum(result[:, :j+1], axis=1) > 0)) / len(result) for j in range(result.shape[1])]
+
+def print_topk_accuracy(identification_result, label=""):
+    topk_acc = get_topk_accuracy(identification_result)
+    print(label)
+    for (i, acc) in enumerate(topk_acc):
+        print(f"Top-{i+1} accuracy: {acc*100}%")
+    return identification_result
+
+
+def resize_dataset(input, size):
+    image, img_label = input
+    if image is None:
+        return [input]
+
+    result, ratio = smart_resize(image, size, return_ratio=True)
+    img_label["resize_ratio"] = ratio
+    return [(result, img_label)]
+
+
+def update_codebooks(input, cfg):
+    codebooks, encoded = input
+    cfg["codebooks"] = codebooks
+    return encoded

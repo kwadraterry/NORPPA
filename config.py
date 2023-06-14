@@ -88,7 +88,7 @@ def config(use_cuda=True, allow_download=True):
     config["geometric"] = {
         "method": cv2.RANSAC,
         "max_iters": 5000,
-        "max_reproj_err": .1,
+        "max_reproj_err": 0.2,
         "estimator": lambda d, mask: d ** np.sum(mask)
     }
 

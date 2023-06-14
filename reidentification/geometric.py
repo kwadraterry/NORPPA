@@ -30,6 +30,9 @@ def re_evaluate(matches, est_cfg):
     dists = [match["distance"] for match in matches]
     inliers = geometric_verification(matches, est_cfg)
     
+    if len(inliers) == 0:
+        return matches
+    
     order = [(est_cfg["estimator"](dist, mask), mask, i) for i, (dist, mask) in enumerate(zip(dists, inliers))]
     order.sort(key = lambda x: (x[0], x[2]))
     
@@ -79,19 +82,26 @@ def get_coordinates(qr_patches_all, db_patches_all):
     return qr_all, db_all
 
 
+def save_findHomography(qr_coords,db_coords,est_cfg):
+    if len(qr_coords)< 4 or len(db_coords) < 4:
+        return np.eye(3),np.full((len(qr_coords), 1), True)
+    
+    return cv2.findHomography(qr_coords,
+                               db_coords,
+                               method=est_cfg["method"],
+                               ransacReprojThreshold=est_cfg["max_reproj_err"],
+                               maxIters=est_cfg["max_iters"]) 
+
 # Finds homographies for each query-database image pairs.
 def estimate_homographies(qr_coords_all,
                           db_coords_all,
                           est_cfg):
 
     models = [
-        cv2.findHomography(qr_coords,
-                           db_coords,
-                           method=est_cfg["method"],
-                           ransacReprojThreshold=est_cfg["max_reproj_err"],
-                           maxIters=est_cfg["max_iters"])
+        save_findHomography(qr_coords,db_coords,est_cfg)
         for qr_coords, db_coords in zip(qr_coords_all, db_coords_all)
     ]
+    
     
     homographies = [H for H, _ in models]
     inliers = [I for _, I in models]

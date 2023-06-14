@@ -6,7 +6,7 @@ import torch.nn.functional as F
 from torch.autograd import Variable
 from copy import deepcopy
 from Utils import GaussianBlur, batch_eig2x2, line_prepender, batched_forward
-from LAF import LAFs2ell,abc2A, angles2A, generate_patch_grid_from_normalized_LAFs, extract_patches, get_inverted_pyr_index, denormalizeLAFs, extract_patches_from_pyramid_with_inv_index, rectifyAffineTransformationUpIsUp
+from LAF import LAFs2ell,abc2A, angles2A, generate_patch_grid_from_normalized_LAFs, extract_patches, get_inverted_pyr_index, denormalizeLAFs, extract_patches_from_pyramid_with_inv_index, rectifyAffineTransformationUpIsUp, ells2LAFs
 from LAF import get_pyramid_and_level_index_for_LAFs, normalizeLAFs, checkTouchBoundary
 from HandCraftedModules import HessianResp, AffineShapeEstimator, OrientationDetector, ScalePyramid, NMS3dAndComposeA
 import time
@@ -21,6 +21,7 @@ class ScaleSpaceAffinePatchExtractor(nn.Module):
                  num_Baum_iters = 0,
                  init_sigma = 1.6,
                  th = None,
+                 patch_scale = 1,
                  RespNet = None, OriNet = None, AffNet = None):
         super(ScaleSpaceAffinePatchExtractor, self).__init__()
         self.mrSize = mrSize
@@ -31,6 +32,7 @@ class ScaleSpaceAffinePatchExtractor(nn.Module):
         self.num_Baum_iters = num_Baum_iters
         self.init_sigma = init_sigma
         self.th = th;
+        self.patch_scale = patch_scale
         if th is not None:
             self.num = -1
         else:
@@ -162,6 +164,7 @@ class ScaleSpaceAffinePatchExtractor(nn.Module):
         LAFs = torch.index_select(LAFs, 0, idxs)
         new_LAFs = torch.cat([torch.bmm(base_A, LAFs[:,:,0:2]),
                                LAFs[:,:,2:]], dim =2)
+        new_LAFs[:, :, :2] *= self.patch_scale
        #print ('affnet_time',affnet_time)
        #print ('pe_time', pe_time)
         return final_resp, new_LAFs, final_pyr_idxs, final_level_idxs  

@@ -24,6 +24,9 @@ import itertools as it
 
 from HessianAffinePatches import extract_hesaff_patches
 
+from extract_patches.core import extract_patches as keypoints_to_patches
+
+
 torch.autograd.set_grad_enabled(False)
 from tqdm import tqdm
 
@@ -130,9 +133,29 @@ def apply_batch_net(patches, net, batch_size=256):
     ind_pairs = list(zip(indices[:-1], indices[1:]))
     return np.concatenate([apply_net(patches[start:end,...], net) for (start, end) in ind_pairs])
 
+def cvkeypoint_to_ell(keypoint):
+    return [keypoint.pt[0], keypoint.pt[1], keypoint.size/2, keypoint.size/2, keypoint.angle * math.pi/180]
+
+def extract_sift_patches(image, patch_size=32, sigma=1.6, nfeatures=480, nOctaveLayers=3, contrastThreshold=0.02, edgeThreshold=5, scale=2):
+    image = np.array(image)
+    sift = cv2.SIFT_create(nfeatures=nfeatures, nOctaveLayers=nOctaveLayers, contrastThreshold=contrastThreshold, edgeThreshold=edgeThreshold, sigma=sigma)
+    keypoints = sift.detect(image)
+    
+    if scale != 1:
+        for i in range(len(keypoints)):
+            keypoints[i].size *= scale
+    
+    patches = np.array(keypoints_to_patches(keypoints, image, patch_size, sigma, 'cv2'))
+    ells = np.array([np.array(cvkeypoint_to_ell(kp)) for kp in keypoints])
+    
+    return patches, ells
+
+
 def patch_extraction(image, config):
-    if config["use_hesaff"]:
+    if config["use_hesaff"] or config.get("patch_extraction", "hesaff") == "hesaff":
         return extract_hesaff_patches(image, **config["hesaff_args"])
+    elif config.get("patch_extraction", "hesaff") == "sift":
+        return extract_sift_patches(image, **(config.get("sift_args", {})))
     else:
         return extract_dense_patches(image, **config["dense_args"])
 
@@ -213,12 +236,12 @@ def group_by(dataset, group_label, patches):
         group_labels[group_id]['class_id'] = label['class_id']
     return group_ids, group_labels
                                
-                               
 
-def _encode_dataset(dataset, config, codebooks=None, group_label='file'):
-    
-    features, inds, labels, ellipses = patchify(dataset, config)
-    
+def extract_patches(dataset, config):
+    return (dataset, patchify(dataset, config))
+
+def _encode_patches(dataset_patches, config, codebooks=None, group_label='file'):
+    (dataset, (features, inds, labels, ellipses)) = dataset_patches
         
     print("Calculating PCA")
     if codebooks is None:
@@ -234,7 +257,6 @@ def _encode_dataset(dataset, config, codebooks=None, group_label='file'):
     else:
         updated_inds = inds
     labels = np.array(group_labels)
-        
     
     print("Getting encoding parameters...")
     if codebooks is None:
@@ -244,7 +266,6 @@ def _encode_dataset(dataset, config, codebooks=None, group_label='file'):
 
     print("Encoding...")
     features, patch_features = encode_all_images(features, updated_inds, encoding_params)
-
 
     kpca = None
     if config["use_kpca"]:
@@ -256,10 +277,11 @@ def _encode_dataset(dataset, config, codebooks=None, group_label='file'):
 
     if codebooks is None:
         codebooks = {'pca': pca, 'gmm': encoding_params, 'kpca': kpca}
-        
     
     return features, labels, codebooks
 
+def _encode_dataset(dataset, config, codebooks=None, group_label='file'):
+    return encode_patches(extract_patches(dataset, config), config, codebooks, group_label)
     
 
 def do_matching(test_feats, db_feats, percentile=10):
@@ -321,16 +343,20 @@ def encode_pipeline(input, cfg):
     return encode_dataset([input], cfg)
 
 def encode_dataset(dataset, cfg, group_label='file', compute_codebooks=False):
+    patches = extract_patches(dataset, cfg)
+    return encode_patches(patches, cfg, group_label=group_label, compute_codebooks=compute_codebooks)
+
+def encode_patches(dataset, cfg, group_label='file', compute_codebooks=False):
     if compute_codebooks:
         codebooks = None
     else:
         codebooks = load_codebooks(cfg)
-    query_features, query_labels, codebooks = _encode_dataset(dataset, cfg, codebooks, group_label)
+    query_features, query_labels, codebooks = _encode_patches(dataset, cfg, codebooks, group_label)
     if compute_codebooks:
         return (codebooks, list(zip(query_features, query_labels)))
     else:
         return list(zip(query_features, query_labels))
-
+    
 
 def identify_single(query, database, cfg):
     return identify([query], database, cfg)
@@ -366,39 +392,6 @@ def identify(query, database, topk=5, leave_one_out=False):
     
     return list(zip(matches, query_labels))
 
-# def identify(query, database, topk=5, leave_one_out=False, geometric=True):
-#     query_features = np.concatenate([f[np.newaxis,...] for ((f, _, _), _) in query])
-#     query_patch_features = [f for ((_, f, _), _) in query]
-#     query_patches = [p for ((_, _, p), _) in query]
-#     query_labels = [l for ((_, _, _), l) in query]
-    
-#     dists, request_ids = match_topk(query_features, get_fisher_vectors(database), cfg["topk"])
-    
-#     patch_matches = [None] * request_ids.shape[0]
-#     for i in tqdm(range(request_ids.shape[0])):
-        
-#         patch_matches[i] = [None] * request_ids.shape[1]
-        
-#         for j in range(request_ids.shape[1]):
-            
-#             db_patch_features, db_patches = get_patches(database, request_ids[i, j])
-            
-#             (filt, sorted_inds, similarity) = do_matching(query_patch_features[i], db_patch_features)
-            
-#             patch_matches[i][j] = {"db_label": get_label(database, request_ids[i, j]), "distance": dists[i, j]}
-            
-#             patch_matches[i][j]["matches"] = [
-#                 [query_patches[i][k].tolist() for k in filt],
-#                 [db_patches[k].tolist() for k in sorted_inds],
-#                 similarity.tolist()
-#             ]
-            
-#         # GEOMETRIC RE-IDENTIFICATION
-#         # (created functions at the end of this file)
-#         if (geometric): 
-            
-    
-#     return list(zip(patch_matches, query_labels))
 
 def apply_geometric(input, params):
     matches, query_labels = input
