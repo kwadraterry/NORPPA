@@ -377,18 +377,25 @@ def get_label(db, i):
         return db[i][1]
 
     
-def identify(query, database, topk=5, leave_one_out=False):
+def identify(query, database=None, topk=5, leave_one_out=False):
+    if database is None:
+        database = query
     query_features = np.concatenate([f[np.newaxis,...] for (f, _) in query])
-    query_labels = [l for (_, l) in query]
-   
     
-    dists, request_ids = match_topk(query_features, get_fisher_vectors(database), topk, leave_one_out=leave_one_out)
+    def add_fisher_field(label, fisher):
+        label["fisher"] = fisher
+        return label
+    query_labels = [add_fisher_field(l, f) for (f, l) in query]
+    
+    db_features = get_fisher_vectors(database)
+    
+    dists, request_ids = match_topk(query_features, db_features, topk, leave_one_out=leave_one_out)
     
     matches = [None] * request_ids.shape[0]
     for i in tqdm(range(request_ids.shape[0])):
         matches[i] = [None] * request_ids.shape[1]
         for j in range(request_ids.shape[1]):
-            matches[i][j] = {"db_label": get_label(database, request_ids[i, j]), "distance": dists[i, j]}
+            matches[i][j] = {"db_label": add_fisher_field(get_label(database, request_ids[i, j]), db_features[request_ids[i, j]]), "distance": dists[i, j]}
     
     return list(zip(matches, query_labels))
 

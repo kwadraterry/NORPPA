@@ -8,11 +8,17 @@ from reidentification.encoding_utils import calculate_dists
 def find_matches(identification_result, cfg):
     matches, query_labels = identification_result
     query_images = query_labels["labels"]
-    query_fishers = [fisher_single(query_image['features'],cfg)  for query_image in query_images]
+    if len(query_images) == 1:
+        query_fishers = [query_labels["fisher"]]
+    else:
+        query_fishers = [fisher_single(query_image['features'],cfg)  for query_image in query_images]
     db_encodings = []
     for (j,match) in enumerate(matches):
         db_images = match["db_label"]["labels"]
-        db_fishers = [fisher_single(db_image['features'],cfg)  for db_image in db_images]
+        if len(db_images)==1:
+            db_fishers = [match["db_label"]["fisher"]]
+        else:
+            db_fishers = [fisher_single(db_image['features'],cfg)  for db_image in db_images]
         
         (dists, _) = calculate_dists(query_fishers, db_fishers)
         dists = np.nan_to_num(dists, nan=2)

@@ -19,6 +19,17 @@ from PIL import Image
 import json
 import gc
 
+import pickle
+
+def save_pickle(x, file):
+    with open(file, 'wb') as f_file:
+        pickle.dump(x, f_file, protocol=4)
+        
+def load_pickle(file):
+    with open(file, 'rb') as f_file:
+        result = pickle.load(f_file)
+    return result
+
 
 def flatten(t):
     return [item for sublist in t for item in sublist]
