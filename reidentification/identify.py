@@ -222,7 +222,7 @@ def group_by(dataset, group_label, patches):
     group_ids = len(dataset) * [None]
     group_labels = [{'labels':[], 'class_id':None} for _ in range(len(groups))]
     features, inds, all_ells = patches  
-    all_ells = np.array(all_ells)
+    # all_ells = np.array(all_ells)
         
         
     for (i, (img, label)) in enumerate(dataset):
@@ -258,9 +258,9 @@ def _encode_patches(dataset_patches, config, codebooks=None, group_label='file')
         updated_inds = inds
     labels = np.array(group_labels)
     
-    print("Getting encoding parameters...")
+    print("Getting encoding parameters...", flush=True)
     if codebooks is None:
-        encoding_params = get_encoding_parameters(features, n_clusters=config["n_clusters"], verbose=False)
+        encoding_params = get_encoding_parameters(features, n_clusters=config["n_clusters"], verbose=True)
     else:
         encoding_params = codebooks["gmm"]
 

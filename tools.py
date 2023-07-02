@@ -24,6 +24,7 @@ import pickle
 def save_pickle(x, file):
     with open(file, 'wb') as f_file:
         pickle.dump(x, f_file, protocol=4)
+    return x
         
 def load_pickle(file):
     with open(file, 'rb') as f_file:

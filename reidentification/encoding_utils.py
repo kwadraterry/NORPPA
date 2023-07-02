@@ -9,6 +9,8 @@ import shutil
 from PIL import Image
 import io
 from base64 import encodebytes
+from sklearn.mixture import GaussianMixture
+import math
 
 def cdist_std(x, y):
     return cdist(x, y, "cosine")
@@ -30,20 +32,29 @@ def calculate_dists(test_features, db_features, dist_func=cdist_std, leave_one_o
 
 
 def get_encoding_parameters(features, n_clusters=256, verbose=False):
+    print("Using old gmm...", flush=True)
     means, covars, priors, _, _ = gmm(features,
                                       n_clusters,
                                       init_mode='kmeans',
-                                      verbose=verbose)
+                                      verbose=False)
     return (means, covars, priors)
 
+# def get_encoding_parameters(features, n_clusters=256, verbose=False, batch_size=32*1024):
 
-def encode_image(features, encoding_params):
-    encoded = np.zeros((features.shape[0],
-                        2 * features.shape[1]
-                        * encoding_params[0].shape[0]))
-    for i in enumerate(range(features.shape[0])):
-        encoded[i, :] = fisher(features[i, :], *encoding_params, improved=True)
-    return encoded
+#     gm = GaussianMixture(n_components=n_clusters, covariance_type='diag', random_state=0, verbose=2 * verbose, verbose_interval=1, warm_start=True)
+#     for i in range(int(math.ceil(features.shape[0] / batch_size))):
+#         gm.fit(features[(i*batch_size):min((i+1)*batch_size, features.shape[0])]) 
+    
+#     return (gm.means_, gm.covariances_, gm.weights_)
+
+
+# def encode_image(features, encoding_params):
+#     encoded = np.zeros((features.shape[0],
+#                         2 * features.shape[1]
+#                         * encoding_params[0].shape[0]))
+#     for i in enumerate(range(features.shape[0])):
+#         encoded[i, :] = fisher(features[i, :], *encoding_params, improved=True)
+#     return encoded
 
 def l2_normalize(v):
     norm = np.linalg.norm(v)

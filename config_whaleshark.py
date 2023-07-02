@@ -56,7 +56,7 @@ def config(use_cuda=True, allow_download=True):
                             'unsharp_amount': 6.80631647207343, 
                             'unsharp_radius': None,
                             'use_cuda' :use_cuda,
-                            'patch_scale': 2}
+                            'patch_scale': 1}
     config["detectron_predictor"] = create_predictor(init_file(base_dir/"models/R-101-FPN_150ims.pth",  
                                             "https://github.com/kwadraterry/NORPPA/raw/models/models/R-101-FPN_150ims.pth", 
                                             allow_download=allow_download),
@@ -91,7 +91,7 @@ def config(use_cuda=True, allow_download=True):
     config["geometric"] = {
         "method": cv2.RANSAC,
         "max_iters": 5000,
-        "max_reproj_err": .2,
+        "max_reproj_err": .05,
         "estimator": lambda d, mask: d ** np.sum(mask)
     }
 

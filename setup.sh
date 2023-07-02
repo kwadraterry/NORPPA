@@ -37,13 +37,13 @@ then
     https://dl.fbaipublicfiles.com/detectron2/wheels/cpu/torch1.10/index.html
 else
   # conda install -y pytorch=1.10 torchvision cyvlfeat libopencv opencv py-opencv -c conda-forge
-  pip install torch==1.10.0+cu111 torchvision==0.11.0+cu111 -f https://download.pytorch.org/whl/torch_stable.html
-  python -m pip install detectron2 -f \
-    https://dl.fbaipublicfiles.com/detectron2/wheels/cu111/torch1.10/index.html
+  python -m pip install torch==1.10.0+cu111 torchvision==0.11.0+cu111 -f https://download.pytorch.org/whl/torch_stable.html
+  python -m pip install detectron2 -f https://dl.fbaipublicfiles.com/detectron2/wheels/cu111/torch1.10/index.html
 fi
 
 # conda install -y ipykernel cyvlfeat opencv tensorflow-gpu -c conda-forge
 
+# conda install kornia -c conda-forge
 
 echo "Installing pip requirements"
 pip3 install -r ./requirements.txt

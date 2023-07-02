@@ -52,6 +52,7 @@ def ell2plotMatch(plt, ell, colors, shift=[0, 0], scale=1, n_rad=15, max_opacity
             
 
 def prepare_query(query_label, uncropped, path_to_load):
+    load_path =  query_label[path_to_load].replace("whaleshark_norppa_tonemapped_pattern_maxim","whaleshark_norppa_tonemapped")
     if query_label.get("resize_ratio", 0) != 0:
         query_ratio = query_label["resize_ratio"]
     else:
@@ -61,12 +62,14 @@ def prepare_query(query_label, uncropped, path_to_load):
     else:
         query_shift = [0, 0]
     query_shift = [x*query_ratio for x in query_shift]
-    query_img = rescale_img(Image.open(query_label[path_to_load]), query_ratio)
+    query_img = rescale_img(Image.open(load_path), query_ratio)
     return query_img, query_shift, query_ratio
+
+filenum = 0
 
 def visualise_match(input, topk=5, path_to_load="file", uncropped=True, gap=20, n_rad=50, n_pts=10, figsize=(24, 24), inlier_color=(0.4,0.87,0.09), outlier_color=(.87, .09, .09), in_cmap="viridis", out_cmap= "inferno", filename=None, filtering_func=lambda match, query_label: True):
     matches, query_labels = input
-    
+    global filenum
     for k, match in enumerate(matches[0:topk]):
         db_label = match["db_label"]
         query_label = query_labels["labels"][match["query_ind"]]
@@ -80,7 +83,8 @@ def visualise_match(input, topk=5, path_to_load="file", uncropped=True, gap=20, 
         query_patches, db_patches, similarity = match["patches"]
         
         db_data = db_label["labels"][match["db_ind"]]
-        db_img = Image.open(db_data[path_to_load])
+        load_path = db_data[path_to_load].replace("whaleshark_norppa_tonemapped_pattern_maxim","whaleshark_norppa_tonemapped")
+        db_img = Image.open(load_path)
         db_img, ratio = resize_to_img(db_img, query_img)
         db_ratio = ratio/db_data.get("resize_ratio", 1)
         
@@ -139,7 +143,8 @@ def visualise_match(input, topk=5, path_to_load="file", uncropped=True, gap=20, 
             plt.plot([p1[0], p2[0]], [p1[1], p2[1]], color=(*inlier_color, min(max_opacity* 3, 1)))
         
         if filename:
-            plt.savefig(filename)
+            plt.savefig(filename + str(filenum) + ".png", bbox_inches='tight')
+            filenum += 1
         else:
             plt.show()
         plt.close(fig)
