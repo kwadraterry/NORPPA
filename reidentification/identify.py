@@ -26,6 +26,9 @@ from HessianAffinePatches import extract_hesaff_patches
 
 from extract_patches.core import extract_patches as keypoints_to_patches
 
+import kornia as K
+import kornia.feature as KF
+from kornia_moons.feature import *
 
 torch.autograd.set_grad_enabled(False)
 from tqdm import tqdm
@@ -159,46 +162,6 @@ def patch_extraction(image, config):
     else:
         return extract_dense_patches(image, **config["dense_args"])
 
-def patchify(dataset, config):
-    net = config["net"]
-    result = []
-    labels = []
-    inds = []
-    all_ells = []
-    ind = 0
-    num_files = len(dataset)
-    dataset_transforms = transforms.Grayscale(num_output_channels=1)
-    
-    for i, (image, img_label) in enumerate(tqdm(dataset)):
-        if image is None:
-            all_ells.append(None)
-            labels.append(img_label)
-            continue
-        image = dataset_transforms(image)
-        num_files-=1
-        if sum(image.getextrema()) == 0:
-            all_ells.append(None)
-            labels.append(img_label)
-            continue
-        patches, ells = patch_extraction(image, config)
-
-        if patches is None or len(patches) == 0:
-            continue
-        patch_features = torch.from_numpy(patches/255).float().unsqueeze(1)
-        if config["use_cuda"]:
-            patch_features = patch_features.cuda()
-        patch_features = apply_batch_net(patch_features, net, batch_size=config["batch_size"])
-        all_ells.append(ells)
-        inds.extend([i] * patch_features.shape[0])
-        labels.append(img_label)
-        result.append(patch_features)
-        del patches
-        gc.collect()
-    labels = np.array(labels)
-    return np.vstack(result), np.array(inds), labels, all_ells
-
-
-
 def fisher_single(patch_features, cfg):
     codebooks = load_codebooks(cfg)
     encoding_params = codebooks["gmm"]
@@ -235,10 +198,94 @@ def group_by(dataset, group_label, patches):
         group_labels[group_id]['labels'].append(label)
         group_labels[group_id]['class_id'] = label['class_id']
     return group_ids, group_labels
-                               
 
-def extract_patches(dataset, config):
-    return (dataset, patchify(dataset, config))
+def getKeyNetAffNetHardNet(num_features=5000, upright=False, scale_laf=1.0):
+    def init(device):
+        return KF.KeyNetAffNetHardNet(num_features=num_features, upright=upright, device=device, scale_laf=scale_laf)
+    def apply(image, detector, dataset_transforms, device):
+        image = dataset_transforms(image)
+        image = np.array(image)[None, :, :, None]
+        timg = K.image_to_tensor(image, False).float()/255.
+        timg = timg.to(device)
+        
+        lafs, _, descs = detector(timg)        
+
+        kps_back = opencv_kpts_from_laf(lafs, scale_laf)
+        patch_features = descs.cpu()[0, ]
+        ells = np.array([[kp.pt[0], kp.pt[1], kp.size, kp.size, kp.angle] for kp in kps_back])
+        return patch_features, ells
+    return init, apply
+        
+def getDISK(pretrained='depth'):
+    def init(device):
+        return KF.DISK.from_pretrained(pretrained, device=device)
+    def apply(image, detector, dataset_transforms, device):
+        image = np.array(image)[None, :, :]
+        timg = K.image_to_tensor(image, False).float()/255.
+        timg = timg.to(device)
+        
+        disk = detector(timg, pad_if_not_divisible=True)[0]
+        patch_features = disk.descriptors.cpu().numpy()
+        pts = disk.keypoints.cpu().numpy()
+        ells = np.array([[kp[0], kp[1], 5, 5, 0] for kp in pts])
+        return patch_features, ells
+    return init, apply
+
+def getHessAffNetHardNet(cfg):
+    def init(device):
+        return cfg["net"]
+    def apply(image, detector, dataset_transforms, device):
+        image = dataset_transforms(image)
+        if sum(image.getextrema()) == 0:
+            all_ells.append(None)
+            labels.append(img_label)
+            return [], []
+        
+        patches, ells = patch_extraction(image, cfg)
+        if patches is None or len(patches) == 0:
+            return [], []
+        patch_features = torch.from_numpy(patches/255).float().unsqueeze(1)
+        if cfg["use_cuda"]:
+            patch_features = patch_features.cuda()
+        patch_features = apply_batch_net(patch_features, detector, batch_size=cfg["batch_size"])
+        return patch_features, ells
+    return init, apply
+
+def patchify(dataset, config, init_apply=None):
+    if init_apply is None:
+        init_apply = getHessAffNetHardNet(config)
+    result = []
+    labels = []
+    inds = []
+    all_ells = []
+    ind = 0
+    dataset_transforms = transforms.Grayscale(num_output_channels=1)
+
+    init, apply = init_apply
+    
+    device = torch.device('cuda') if config['use_cuda'] else torch.device('cpu')
+    
+    print(f"Using device {device}")
+    detector = init(device)
+    
+    for i, (image, img_label) in enumerate(tqdm(dataset)):
+        if image is None or sum(dataset_transforms(image).getextrema()) == 0:
+            all_ells.append(None)
+            labels.append(img_label)
+            continue
+        
+        patch_features, ells = apply(image, detector, dataset_transforms, device)
+        
+        all_ells.append(ells)
+        inds.extend([i] * patch_features.shape[0])
+        labels.append(img_label)
+        result.append(patch_features)
+
+    labels = np.array(labels)
+    return np.vstack(result), np.array(inds), labels, all_ells
+
+def extract_patches(dataset, config, init_apply=None):
+    return (dataset, patchify(dataset, config, init_apply))
 
 def _encode_patches(dataset_patches, config, codebooks=None, group_label='file'):
     (dataset, (features, inds, labels, ellipses)) = dataset_patches
@@ -289,7 +336,6 @@ def do_matching(test_feats, db_feats, percentile=10):
     sorted_dists = np.take_along_axis(dists, sorted_inds, axis=1)
 #     print(sorted_dists.shape)
     if test_feats.size == 0 or db_feats.size == 0:
-        print("empty")
         return (np.array([]), np.array([]), np.array([]))
     
     mean_dist = np.percentile(sorted_dists[:, 0], percentile)
@@ -314,7 +360,6 @@ def match_topk(test_features, db_features, topk, leave_one_out=False):
     dists, inds = calculate_dists(test_features, db_features, leave_one_out=leave_one_out)
     sorted_inds = np.argsort(dists, axis=1)
     dists = np.take_along_axis(dists, sorted_inds, axis=1)
-    print(topk)
     return dists[:, :topk], sorted_inds[:, :topk]
 
 def load_codebooks(cfg):
@@ -342,8 +387,8 @@ def encode_pipeline(input, cfg):
         return input
     return encode_dataset([input], cfg)
 
-def encode_dataset(dataset, cfg, group_label='file', compute_codebooks=False):
-    patches = extract_patches(dataset, cfg)
+def encode_dataset(dataset, cfg, group_label='file', init_apply_encoders=None, compute_codebooks=False):
+    patches = extract_patches(dataset, cfg, init_apply_encoders)
     return encode_patches(patches, cfg, group_label=group_label, compute_codebooks=compute_codebooks)
 
 def encode_patches(dataset, cfg, group_label='file', compute_codebooks=False):

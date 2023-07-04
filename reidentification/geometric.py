@@ -54,26 +54,32 @@ def geometric_verification(matches, est_cfg):
     return inliers
 
 
+def safe_max(x, *args, **kw_args):
+    if len(x) == 0:
+        return x
+    else:
+        return max(x, *args, **kw_args)
+    
 # Extracts the x,y point correspondences and translate and scale point sets inside unit circle.
 def get_coordinates(qr_patches_all, db_patches_all):
     
     # get xy-pairs
     qr_all = np.array([np.array([[qr[0], qr[1]] for qr in qr_patches]) 
-                       for qr_patches in qr_patches_all])
+                       for qr_patches in qr_patches_all], dtype=object)
     
     db_all = np.array([np.array([[db[0], db[1]] for db in db_patches]) 
-                       for db_patches in db_patches_all])
+                       for db_patches in db_patches_all], dtype=object)
     
     # translate to origin
-    qr_mean = np.array([np.mean(qr_coords, axis=0) for qr_coords in qr_all])
-    db_mean = np.array([np.mean(db_coords, axis=0) for db_coords in db_all])
+    qr_mean = np.array([np.mean(qr_coords, axis=0) for qr_coords in qr_all], dtype=object)
+    db_mean = np.array([np.mean(db_coords, axis=0) for db_coords in db_all], dtype=object)
     for i, (qr, db) in enumerate(zip(qr_mean, db_mean)):
         qr_all[i] -= qr
         db_all[i] -= db
     
     # set |p| <= 1
-    max_l_qr = [max(qr, key=lambda p: np.linalg.norm(p)) for qr in qr_all]
-    max_l_db = [max(db, key=lambda p: np.linalg.norm(p)) for db in db_all]
+    max_l_qr = [safe_max(qr, key=lambda p: np.linalg.norm(p)) for qr in qr_all]
+    max_l_db = [safe_max(db, key=lambda p: np.linalg.norm(p)) for db in db_all]
     for i, (qr, db) in enumerate(zip(max_l_qr, max_l_db)):
         a, b = np.linalg.norm(qr), np.linalg.norm(db)
         qr_all[i] /= a if a > np.finfo(float).eps else 1

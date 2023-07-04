@@ -11,6 +11,7 @@ import numpy as np
 from datetime import datetime
 from six.moves import urllib
 from pattern_extraction.utils import thickness_resize
+from pattern_extraction.extract_pattern import smart_resize
 
 from PIL import Image, ImageFile
 ImageFile.LOAD_TRUNCATED_IMAGES = True
@@ -18,6 +19,8 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 from PIL import Image
 import json
 import gc
+
+from tqdm import tqdm
 
 import pickle
 
@@ -31,6 +34,11 @@ def load_pickle(file):
         result = pickle.load(f_file)
     return result
 
+def print_step(text):
+    def identity_print(x):
+        print(text)
+        return x
+    return identity_print
 
 def flatten(t):
     return [item for sublist in t for item in sublist]
@@ -41,8 +49,8 @@ def apply_step(input, step, rest):
         result = flatten((apply_step(x, rest[0], rest[1:]) for x in result))
     return result
 
-def apply_pipeline(image, label, pipeline):
-    return apply_step((image, label), pipeline[0], pipeline[1:])
+def apply_pipeline(image, pipeline, verbose=False):
+    return apply_pipeline_dataset([image], pipeline, verbose=verbose)
 
 
 def apply_pipeline_dataset(dataset, pipeline, verbose=False):
@@ -70,7 +78,7 @@ def cat(array):
     return [y for x in array for y in x]
 
 def apply_sequential(func):
-    return lambda dataset: cat([func(x) for x in dataset])
+    return lambda dataset: cat([func(x) for x in tqdm(dataset, leave=False)])
 
 def curry_sequential(func, *params, **kw):
     return apply_sequential(curry(func, *params, **kw))
@@ -306,7 +314,9 @@ def get_topk_accuracy(identification_result):
     for (db_labels, q_labels) in identification_result:
         q_class = q_labels['class_id']
         q_ln = len(q_labels['labels'])
-        result.append([db_label['db_label']['class_id']==q_class for db_label in db_labels]*q_ln)
+        hits = [db_label['db_label']['class_id']==q_class for db_label in db_labels]
+        for _ in range(q_ln):
+            result.append(hits)
     result = np.asarray(result)
     return [sum((np.sum(result[:, :j+1], axis=1) > 0)) / len(result) for j in range(result.shape[1])]
 

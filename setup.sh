@@ -21,18 +21,21 @@ while [ "$1" != "" ]; do
     shift
 done
 
-echo "Creating and activating norppa environment"
-conda create -y --prefix /$USER/env/norppa python=3.7 cudatoolkit=11.1 cyvlfeat opencv ffmpeg cudnn -c conda-forge
-conda activate /$USER/env/norppa
+env_name="norppa_test2"
 
-echo "Installing ipykernel, cyvlfeat and opencv"
+echo "Creating and activating $env_name environment"
+conda create -y --prefix /$USER/env/$env_name python=3.7 cudatoolkit=11.1 cyvlfeat opencv ffmpeg cudnn tensorflow==2.8 -c conda-forge
+conda init bash
+conda activate /$USER/env/$env_name
+
+# echo "Installing ipykernel, cyvlfeat and opencv"
 # conda install -y cyvlfeat libopencv opencv py-opencv -c conda-forge
 
-# echo "Installing pytorch, torchvision and detectron"
+echo "Installing pytorch, torchvision and detectron"
 if [ "$cpu" = true ]
 then
   # conda install -y pytorch=1.10 torchvision cpuonly cyvlfeat libopencv opencv py-opencv -c conda-forge
-  pip install torch==1.10.1+cpu torchvision==0.11.2+cpu -f https://download.pytorch.org/whl/torch_stable.html
+  python -m pip install torch==1.10.1+cpu torchvision==0.11.2+cpu -f https://download.pytorch.org/whl/torch_stable.html
   python -m pip install detectron2 -f \
     https://dl.fbaipublicfiles.com/detectron2/wheels/cpu/torch1.10/index.html
 else
@@ -41,23 +44,17 @@ else
   python -m pip install detectron2 -f https://dl.fbaipublicfiles.com/detectron2/wheels/cu111/torch1.10/index.html
 fi
 
-# conda install -y ipykernel cyvlfeat opencv tensorflow-gpu -c conda-forge
-
-# conda install kornia -c conda-forge
-
 echo "Installing pip requirements"
-pip3 install -r ./requirements.txt
+python -m pip install -r ./requirements.txt
 
-conda update -y ffmpeg
-#echo "Installing detectron2"
-#conda install -c conda-forge detectron2
-# if [ "$cpu" = true ]
-# then
-#   python3 -m pip install detectron2 -f \
-#     https://dl.fbaipublicfiles.com/detectron2/wheels/cpu/torch1.5/index.html
-# else
-#   python3 -m pip install detectron2 -f \
-#     https://dl.fbaipublicfiles.com/detectron2/wheels/gpu/torch1.5/index.html
-# fi
+# mkdir -p $CONDA_PREFIX/etc/conda/activate.d
+# echo 'CUDNN_PATH=$(dirname $(python -c "import nvidia.cudnn;print(nvidia.cudnn.__file__)"))' >> $CONDA_PREFIX/etc/conda/activate.d/env_vars.sh
+# echo 'export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CONDA_PREFIX/lib/:$CUDNN_PATH/lib' >> $CONDA_PREFIX/etc/conda/activate.d/env_vars.sh
+# source $CONDA_PREFIX/etc/conda/activate.d/env_vars.sh
 
-#echo "Installing tensorflow"
+# conda update -y ffmpeg
+
+# python -m pip install --upgrade numpy
+
+# python -m pip install ipykernel
+python -m ipykernel install --user --name=$env_name
