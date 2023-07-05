@@ -220,7 +220,7 @@ def getDISK(pretrained='depth'):
     def init(device):
         return KF.DISK.from_pretrained(pretrained, device=device)
     def apply(image, detector, dataset_transforms, device):
-        image = np.array(image)[None, :, :]
+        image = np.array(image.convert("RGB"))[None, :, :]
         timg = K.image_to_tensor(image, False).float()/255.
         timg = timg.to(device)
         

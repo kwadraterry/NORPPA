@@ -78,7 +78,7 @@ def cat(array):
     return [y for x in array for y in x]
 
 def apply_sequential(func):
-    return lambda dataset: cat([func(x) for x in tqdm(dataset, leave=False)])
+    return lambda dataset: cat([func(x) for x in tqdm(dataset)])
 
 def curry_sequential(func, *params, **kw):
     return apply_sequential(curry(func, *params, **kw))
@@ -196,6 +196,9 @@ def crop_step(input):
         if type(label) is dict:
             label["bb"] = bb
     return [(image, label)]
+
+def crop_step_sequential(input):
+    return apply_sequential(crop_step)(input)
 
 def thickness_resize_step(input):
     image, label = input 

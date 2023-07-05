@@ -59,7 +59,13 @@ def safe_max(x, *args, **kw_args):
         return x
     else:
         return max(x, *args, **kw_args)
-    
+
+def safe_mean(x, *args, **kw_args):
+    if len(x) == 0:
+        return x
+    else:
+        return np.mean(x, *args, **kw_args) 
+        
 # Extracts the x,y point correspondences and translate and scale point sets inside unit circle.
 def get_coordinates(qr_patches_all, db_patches_all):
     
@@ -71,8 +77,8 @@ def get_coordinates(qr_patches_all, db_patches_all):
                        for db_patches in db_patches_all], dtype=object)
     
     # translate to origin
-    qr_mean = np.array([np.mean(qr_coords, axis=0) for qr_coords in qr_all], dtype=object)
-    db_mean = np.array([np.mean(db_coords, axis=0) for db_coords in db_all], dtype=object)
+    qr_mean = np.array([safe_mean(qr_coords, axis=0) for qr_coords in qr_all], dtype=object)
+    db_mean = np.array([safe_mean(db_coords, axis=0) for db_coords in db_all], dtype=object)
     for i, (qr, db) in enumerate(zip(qr_mean, db_mean)):
         qr_all[i] -= qr
         db_all[i] -= db
@@ -81,6 +87,8 @@ def get_coordinates(qr_patches_all, db_patches_all):
     max_l_qr = [safe_max(qr, key=lambda p: np.linalg.norm(p)) for qr in qr_all]
     max_l_db = [safe_max(db, key=lambda p: np.linalg.norm(p)) for db in db_all]
     for i, (qr, db) in enumerate(zip(max_l_qr, max_l_db)):
+        if len(qr) == 0 or len(db) == 0:
+            continue
         a, b = np.linalg.norm(qr), np.linalg.norm(db)
         qr_all[i] /= a if a > np.finfo(float).eps else 1
         db_all[i] /= b if b > np.finfo(float).eps else 1
@@ -91,9 +99,8 @@ def get_coordinates(qr_patches_all, db_patches_all):
 def save_findHomography(qr_coords,db_coords,est_cfg):
     if len(qr_coords)< 4 or len(db_coords) < 4:
         return np.eye(3),np.full((len(qr_coords), 1), True)
-    
-    return cv2.findHomography(qr_coords,
-                               db_coords,
+    return cv2.findHomography(qr_coords.astype(np.float),
+                               db_coords.astype(np.float),
                                method=est_cfg["method"],
                                ransacReprojThreshold=est_cfg["max_reproj_err"],
                                maxIters=est_cfg["max_iters"]) 

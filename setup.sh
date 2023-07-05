@@ -21,10 +21,10 @@ while [ "$1" != "" ]; do
     shift
 done
 
-env_name="norppa_test2"
+env_name="norppa_test"
 
 echo "Creating and activating $env_name environment"
-conda create -y --prefix /$USER/env/$env_name python=3.7 cudatoolkit=11.1 cyvlfeat opencv ffmpeg cudnn tensorflow==2.8 -c conda-forge
+conda create -y --prefix /$USER/env/$env_name python=3.7 cudatoolkit=11.1 cyvlfeat opencv ffmpeg cudnn tensorflow==2.6 -c conda-forge
 conda init bash
 conda activate /$USER/env/$env_name
 
@@ -55,6 +55,8 @@ python -m pip install -r ./requirements.txt
 # conda update -y ffmpeg
 
 # python -m pip install --upgrade numpy
+
+pip install typing-extensions kornia_moons --upgrade
 
 # python -m pip install ipykernel
 python -m ipykernel install --user --name=$env_name
