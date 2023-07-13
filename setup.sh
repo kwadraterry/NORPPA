@@ -21,7 +21,7 @@ while [ "$1" != "" ]; do
     shift
 done
 
-env_name="norppa_test"
+env_name="norppa"
 
 echo "Creating and activating $env_name environment"
 conda create -y --prefix /$USER/env/$env_name python=3.7 cudatoolkit=11.1 cyvlfeat opencv ffmpeg cudnn tensorflow==2.6 -c conda-forge
