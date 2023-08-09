@@ -188,15 +188,15 @@ def process_datasets(datasets, smart_resize_size=256, topk=20):
 
 def main():
     
-    datasets = [  #("norppa_pattern_train_half", 
-                  #      SimpleDataset("/ekaterina/work/data/dataset-0520/segmented_pattern_resized/database", per_class_limit=0.5), False, None),
+    datasets = [  
                   ("norppa_pattern", 
                         (SimpleDataset("/ekaterina/work/data/dataset-0520/segmented_pattern_resized/database"), 
-                         SimpleDataset("/ekaterina/work/data/dataset-0520/segmented_pattern_resized/query")), False, "norppa_pattern_train_half"),
-                #   ("whaleshark_pattern_train", SimpleDataset("/ekaterina/work/data/whaleshark_norppa_pattern/train"), False, None),
-                #   ("whaleshark_base_train", SimpleDataset("/ekaterina/work/data/whaleshark_norppa/train"), True, None),
-                #   ("whaleshark_pattern_test", SimpleDataset("/ekaterina/work/data/whaleshark_norppa_pattern/test"), False, "whaleshark_pattern_train"),
-                #   ("whaleshark_base_test", SimpleDataset("/ekaterina/work/data/whaleshark_norppa/test"), True, "whaleshark_base_train"),
+                         SimpleDataset("/ekaterina/work/data/dataset-0520/segmented_pattern_resized/query")), False, None),
+                         
+                  ("whaleshark_pattern_train", SimpleDataset("/ekaterina/work/data/whaleshark_norppa_pattern/train"), False, None),
+                  ("whaleshark_base_train", SimpleDataset("/ekaterina/work/data/whaleshark_norppa/train"), True, None),
+                  ("whaleshark_pattern_test", SimpleDataset("/ekaterina/work/data/whaleshark_norppa_pattern/test"), False, "whaleshark_pattern_train"),
+                  ("whaleshark_base_test", SimpleDataset("/ekaterina/work/data/whaleshark_norppa/test"), True, "whaleshark_base_train"),
                 ]
     process_datasets(datasets)
 
