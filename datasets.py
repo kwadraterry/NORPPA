@@ -3,6 +3,7 @@ from pathlib import Path
 from tools import read_image
 import csv
 import numpy as np
+import math
 
 from torch.utils.data import Dataset
 import os
@@ -70,8 +71,9 @@ class COCOImageDataset(Dataset):
 
 class SimpleDataset(Dataset):
     def __init__(self, 
-                dataset_dir):
+                dataset_dir, per_class_limit=None):
         
+        self.per_class_limit = per_class_limit
         self.dataset_dir = dataset_dir
         self.data = self._get_data(dataset_dir)
         self.classes = list(self._get_classes(self.data))
@@ -88,11 +90,22 @@ class SimpleDataset(Dataset):
         classes = set([items[1] for items in data])
         return classes
 
+    def _check_limit(self, class_iter):
+        if self.per_class_limit is None:
+            return len(class_iter)
+        elif self.per_class_limit < 1:
+            return round(len(class_iter) * self.per_class_limit)
+        else:
+            return self.per_class_limit
+        
+
     def _get_data(self, dataset_dir):
         dataset_dir = Path(dataset_dir)
         result = []
         for class_dir in [x for x in dataset_dir.iterdir() if x.is_dir()]:
-            for img in class_dir.iterdir():
+            imgs = list(class_dir.iterdir())
+            lim = self._check_limit(imgs)
+            for img in imgs[:lim]:
                 result.append((str(img), class_dir.name))
         return result
     

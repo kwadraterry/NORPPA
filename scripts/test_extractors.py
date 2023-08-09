@@ -13,10 +13,6 @@ from tools import load_pickle, curry, apply_pipeline_dataset, curry_sequential, 
 from reidentification.identify import identify, apply_geometric, encode_patches, getDISK, getKeyNetAffNetHardNet, getHessAffNetHardNet, extract_patches
 from reidentification.find_matches import find_matches
 
-def identity(x):
-    """An identity function with single argument"""
-    return x
-
 def update_codebooks(input, cfg, save_path=None):
     """
     A pipeline step used after encode_dataset/encode_patches with compute_codebooks=True.
@@ -134,19 +130,23 @@ def process_datasets(datasets, smart_resize_size=256, topk=20):
     For each dataset, runs complete pipeline (starting from feature extraction) and prints out re-identification accuracy.
 
     """
-    for (dataset_name, dataset_dir, do_resize, codebooks_dataset) in datasets:
+    for (dataset_name, dataset, do_resize, codebooks_dataset) in datasets:
         print()
-        print(f"Dataset {dataset_name}")
-        print(f"Path to the dataset: {dataset_dir}")
-        print()
+        print(f"Dataset name: {dataset_name}")
 
-        leave_one_out = isinstance(dataset_dir, str)
+        leave_one_out = not isinstance(dataset, tuple)
         if leave_one_out:
             db_dataset = None
         else:
-            (db_dataset_dir, query_dataset_dir) = dataset_dir
-            dataset_dir = query_dataset_dir
-            db_dataset = SimpleDataset(db_dataset_dir)
+            (db_dataset, query_dataset) = dataset
+            dataset = query_dataset
+            print(f"Path to database the dataset: {db_dataset.dataset_dir}")
+            print(f"Database dataset: {db_dataset}")
+            print()
+
+        print(f"Path to the dataset: {dataset.dataset_dir}")
+        print(f"Dataset: {dataset}")
+        print()
 
         cfg = config()
         cfg["codebooks_path"] = None
@@ -154,7 +154,7 @@ def process_datasets(datasets, smart_resize_size=256, topk=20):
         cfg["topk"]=topk
 
         ### Create dataset
-        dataset = SimpleDataset(dataset_dir)
+        # dataset = SimpleDataset(dataset_dir)
 
 
         ### Resize dataset if necessary (i.e. when input images are too large)
@@ -188,13 +188,15 @@ def process_datasets(datasets, smart_resize_size=256, topk=20):
 
 def main():
     
-    datasets = [
-                  ("norppa_pattern", ("/ekaterina/work/data/dataset-0520/segmented_pattern_resized/database", 
-                                      "/ekaterina/work/data/dataset-0520/segmented_pattern_resized/query"), False, None),
-                  ("whaleshark_pattern_train", "/ekaterina/work/data/whaleshark_norppa_pattern/train", False, None),
-                  ("whaleshark_base_train", "/ekaterina/work/data/whaleshark_norppa/train", True, None),
-                  ("whaleshark_pattern_test", "/ekaterina/work/data/whaleshark_norppa_pattern/test", False, "whaleshark_pattern_train"),
-                  ("whaleshark_base_test", "/ekaterina/work/data/whaleshark_norppa/test", True, "whaleshark_base_train"),
+    datasets = [  #("norppa_pattern_train_half", 
+                  #      SimpleDataset("/ekaterina/work/data/dataset-0520/segmented_pattern_resized/database", per_class_limit=0.5), False, None),
+                  ("norppa_pattern", 
+                        (SimpleDataset("/ekaterina/work/data/dataset-0520/segmented_pattern_resized/database"), 
+                         SimpleDataset("/ekaterina/work/data/dataset-0520/segmented_pattern_resized/query")), False, "norppa_pattern_train_half"),
+                #   ("whaleshark_pattern_train", SimpleDataset("/ekaterina/work/data/whaleshark_norppa_pattern/train"), False, None),
+                #   ("whaleshark_base_train", SimpleDataset("/ekaterina/work/data/whaleshark_norppa/train"), True, None),
+                #   ("whaleshark_pattern_test", SimpleDataset("/ekaterina/work/data/whaleshark_norppa_pattern/test"), False, "whaleshark_pattern_train"),
+                #   ("whaleshark_base_test", SimpleDataset("/ekaterina/work/data/whaleshark_norppa/test"), True, "whaleshark_base_train"),
                 ]
     process_datasets(datasets)
 
