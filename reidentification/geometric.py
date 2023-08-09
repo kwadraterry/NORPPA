@@ -80,8 +80,8 @@ def get_coordinates(qr_patches_all, db_patches_all):
     qr_mean = np.array([safe_mean(qr_coords, axis=0) for qr_coords in qr_all], dtype=object)
     db_mean = np.array([safe_mean(db_coords, axis=0) for db_coords in db_all], dtype=object)
     for i, (qr, db) in enumerate(zip(qr_mean, db_mean)):
-        qr_all[i] -= qr
-        db_all[i] -= db
+        qr_all[i] = qr_all[i] - qr
+        db_all[i] = db_all[i] - db
     
     # set |p| <= 1
     max_l_qr = [safe_max(qr, key=lambda p: np.linalg.norm(p)) for qr in qr_all]

@@ -326,10 +326,7 @@ def _encode_patches(dataset_patches, config, codebooks=None, group_label='file')
         codebooks = {'pca': pca, 'gmm': encoding_params, 'kpca': kpca}
     
     return features, labels, codebooks
-
-def _encode_dataset(dataset, config, codebooks=None, group_label='file'):
-    return encode_patches(extract_patches(dataset, config), config, codebooks, group_label)
-    
+ 
 
 def do_matching(test_feats, db_feats, percentile=10):
     dists, sorted_inds = calculate_dists(test_feats, db_feats)

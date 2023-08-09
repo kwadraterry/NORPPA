@@ -10,6 +10,7 @@ from skimage import color
 import numpy as np
 from datetime import datetime
 from six.moves import urllib
+from timeit import default_timer as timer
 from pattern_extraction.utils import thickness_resize
 from pattern_extraction.extract_pattern import smart_resize
 
@@ -345,3 +346,21 @@ def update_codebooks(input, cfg):
     codebooks, encoded = input
     cfg["codebooks"] = codebooks
     return encoded
+
+
+
+class StopwatchPrint(object):
+    def __init__(self,
+                 start_print="Start stopwatch",
+                 final_print="Elapsed time %2.4f"):
+        self.start_print = start_print
+        self.final_print = final_print
+
+    def __enter__(self):
+        self.tic = timer()
+        print(self.start_print)
+        return self
+
+    def __exit__(self, exc_type, exc_value, exc_traceback):
+        self.toc = timer()
+        print(self.final_print % (self.toc-self.tic))
