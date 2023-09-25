@@ -139,3 +139,6 @@ temp/
 *.pth
 *.ckpt
 paper/*
+leopard_uuids.csv
+features.png
+leopard_uuids.txt

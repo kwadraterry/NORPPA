@@ -9,8 +9,9 @@ sys.path.append(str(file_folder / "reidentification/hesaff_pytorch"))
 
 
 from HessianAffinePatches import init_affnet, init_orinet, init_hardnet
-from segmentation.detectron_segment import create_predictor
+# from segmentation.detectron_segment import create_predictor
 from pattern_extraction.extract_pattern import create_unet
+from segmentation.seem.seem_segment import init_seem
 from torchvision.datasets.utils import download_url
 from sql import create_connection
 
@@ -22,6 +23,8 @@ def init_file(path, url, allow_download=True):
         return path
     else:
         raise Exception("The file {path} is not found!")
+    
+    
 
 def config(use_cuda=True, allow_download=True):   
 
@@ -31,10 +34,10 @@ def config(use_cuda=True, allow_download=True):
     
     path_db = mount_path + "DB.db"
     config["conn"] = create_connection(path_db)
-    config["detectron_predictor"] = create_predictor(init_file(base_dir/"models/R-101-FPN_150ims.pth",  
-                                    "https://github.com/kwadraterry/NORPPA/raw/models/models/R-101-FPN_150ims.pth", 
-                                    allow_download=allow_download),
-                                    not  use_cuda )
+    # config["detectron_predictor"] = create_predictor(init_file(base_dir/"models/R-101-FPN_150ims.pth",  
+    #                                 "https://github.com/kwadraterry/NORPPA/raw/models/models/R-101-FPN_150ims.pth", 
+    #                                 allow_download=allow_download),
+    #                                 not  use_cuda )
     config["unet"] = create_unet(init_file(base_dir/"models/unet_seals_512.hdf5",  
                                             "https://github.com/kwadraterry/NORPPA/raw/models/models/unet_seals_512.hdf5", 
                                             allow_download=allow_download))
@@ -91,5 +94,11 @@ def config(use_cuda=True, allow_download=True):
         "max_reproj_err": 0.2,
         "estimator": lambda d, mask: d ** np.sum(mask)
     }
+    seem_model, seem_transform = init_seem(conf_files=str(Path(base_dir/"segmentation/seem/configs/seem/seem_focall_lang.yaml")), model_path=str(Path(base_dir/"models")))
+    config["seem"] = {
+        "model": seem_model,
+        "transform": seem_transform
+    }
+    
 
     return config

@@ -52,7 +52,7 @@ def ell2plotMatch(plt, ell, colors, shift=[0, 0], scale=1, n_rad=15, max_opacity
             
 
 def prepare_query(query_label, uncropped, path_to_load):
-    load_path =  query_label[path_to_load].replace("whaleshark_norppa_tonemapped_pattern_maxim","whaleshark_norppa_tonemapped")
+    load_path =  query_label[path_to_load]#.replace("whaleshark_norppa_tonemapped_pattern_maxim","whaleshark_norppa_tonemapped")
     if query_label.get("resize_ratio", 0) != 0:
         query_ratio = query_label["resize_ratio"]
     else:
@@ -67,12 +67,12 @@ def prepare_query(query_label, uncropped, path_to_load):
 
 filenum = 0
 
-def visualise_match(input, topk=5, path_to_load="file", uncropped=True, gap=20, n_rad=50, n_pts=10, figsize=(24, 24), inlier_color=(0.4,0.87,0.09), outlier_color=(.87, .09, .09), in_cmap="viridis", out_cmap= "inferno", filename=None, filtering_func=lambda match, query_label: True):
+def visualise_match(input, topk=5, path_to_load="file", uncropped=True, gap=20, n_rad=50, n_pts=10, figsize=(24, 24), inlier_color=(0.4,0.87,0.09), outlier_color=(.87, .09, .09), in_cmap="viridis", out_cmap= "inferno", filename=None, filtering_func=lambda match, query_label: True, data_process_func=lambda x: x):
     matches, query_labels = input
     global filenum
     for k, match in enumerate(matches[0:topk]):
         db_label = match["db_label"]
-        query_label = query_labels["labels"][match["query_ind"]]
+        query_label = data_process_func(query_labels["labels"][match["query_ind"]])
         
         if not filtering_func(match, query_label):
             continue
@@ -82,8 +82,9 @@ def visualise_match(input, topk=5, path_to_load="file", uncropped=True, gap=20, 
         
         query_patches, db_patches, similarity = match["patches"]
         
-        db_data = db_label["labels"][match["db_ind"]]
-        load_path = db_data[path_to_load].replace("whaleshark_norppa_tonemapped_pattern_maxim","whaleshark_norppa_tonemapped")
+        db_data = data_process_func(db_label["labels"][match["db_ind"]])
+        # load_path = db_data[path_to_load].replace("whaleshark_norppa_tonemapped_pattern_maxim","whaleshark_norppa_tonemapped")
+        load_path = db_data[path_to_load]
         db_img = Image.open(load_path)
         db_img, ratio = resize_to_img(db_img, query_img)
         db_ratio = ratio/db_data.get("resize_ratio", 1)
@@ -105,10 +106,11 @@ def visualise_match(input, topk=5, path_to_load="file", uncropped=True, gap=20, 
 #         print("Mask" in match)
 #         print(mask)
         if "Geom_Est" in match:
-            plt.title(f'Distance: {match["distance"]:.5f}  Inliers: {np.sum(mask)}  Estimation: {match["Geom_Est"]:.5f}')
+            plt.title(f'Distance: {match["distance"]:.3f}')
+            # plt.title(f'Distance: {match["distance"]:.3f}  Inliers: {np.sum(mask)}  Estimation: {match["Geom_Est"]:.3f}')
         else:
-            plt.title(f'Distance: {match["distance"]:.5f}')
-        plt.title(f'Distance: {match["distance"]}')
+            plt.title(f'Distance: {match["distance"]:.3f}')
+        # plt.title(f'Distance: {match["distance"]}')
         plt.title(f'Query: class {query_label["class_id"]}', loc='left')
         plt.title(f'Top-{k+1}: class {db_label["class_id"]}', loc='right')
         

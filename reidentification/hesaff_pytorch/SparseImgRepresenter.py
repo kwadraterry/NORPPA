@@ -11,6 +11,13 @@ from LAF import get_pyramid_and_level_index_for_LAFs, normalizeLAFs, checkTouchB
 from HandCraftedModules import HessianResp, AffineShapeEstimator, OrientationDetector, ScalePyramid, NMS3dAndComposeA
 import time
 
+def safe_cat(ms, dim = 0):
+    if len(ms) == 0:
+        return np.array(ms)
+    else:
+        return torch.cat(ms, dim = dim)
+
+
 class ScaleSpaceAffinePatchExtractor(nn.Module):
     def __init__(self, 
                  border = 16,
@@ -101,10 +108,10 @@ class ScaleSpaceAffinePatchExtractor(nn.Module):
                     lev_id = lev_id.cuda()
                 pyr_idxs.append(pyr_id)
                 level_idxs.append(lev_id)
-        all_responses = torch.cat(top_responces, dim = 0)
-        aff_m_scales = torch.cat(aff_matrices,dim = 0)
-        pyr_idxs_scales = torch.cat(pyr_idxs,dim = 0)
-        level_idxs_scale = torch.cat(level_idxs, dim = 0)
+        all_responses = safe_cat(top_responces, dim = 0)
+        aff_m_scales = safe_cat(aff_matrices,dim = 0)
+        pyr_idxs_scales = safe_cat(pyr_idxs,dim = 0)
+        level_idxs_scale = safe_cat(level_idxs, dim = 0)
         if (num_features > 0) and (num_features < all_responses.size(0)):
             all_responses, idxs = torch.topk(all_responses, k = num_features);
             LAFs = torch.index_select(aff_m_scales, 0, idxs)
@@ -138,7 +145,7 @@ class ScaleSpaceAffinePatchExtractor(nn.Module):
             else:
                 is_good = is_good * is_good_current
             base_A = torch.bmm(A, base_A); 
-            new_LAFs = torch.cat([torch.bmm(base_A,LAFs[:,:,0:2]), LAFs[:,:,2:] ], dim =2)
+            new_LAFs = safe_cat([torch.bmm(base_A,LAFs[:,:,0:2]), LAFs[:,:,2:] ], dim =2)
             #print torch.sqrt(new_LAFs[0,0,0]*new_LAFs[0,1,1] - new_LAFs[0,1,0] *new_LAFs[0,0,1]) * scale_pyr[0][0].size(2)
             if i != self.num_Baum_iters - 1:
                 pe_time+=time.time() - t
@@ -162,7 +169,7 @@ class ScaleSpaceAffinePatchExtractor(nn.Module):
         final_level_idxs = final_level_idxs[idxs]
         base_A = torch.index_select(base_A, 0, idxs)
         LAFs = torch.index_select(LAFs, 0, idxs)
-        new_LAFs = torch.cat([torch.bmm(base_A, LAFs[:,:,0:2]),
+        new_LAFs = safe_cat([torch.bmm(base_A, LAFs[:,:,0:2]),
                                LAFs[:,:,2:]], dim =2)
         new_LAFs[:, :, :2] *= self.patch_scale
        #print ('affnet_time',affnet_time)
@@ -177,9 +184,9 @@ class ScaleSpaceAffinePatchExtractor(nn.Module):
         for i in range(max_iters):
             angles = self.OriNet(patches_small)
             if len(angles.size()) > 2:
-                LAFs = torch.cat([torch.bmm( LAFs[:,:,:2], angles), LAFs[:,:,2:]], dim = 2)
+                LAFs = safe_cat([torch.bmm( LAFs[:,:,:2], angles), LAFs[:,:,2:]], dim = 2)
             else:
-                LAFs = torch.cat([torch.bmm( LAFs[:,:,:2], angles2A(angles).view(-1,2,2)), LAFs[:,:,2:]], dim = 2)
+                LAFs = safe_cat([torch.bmm( LAFs[:,:,:2], angles2A(angles).view(-1,2,2)), LAFs[:,:,2:]], dim = 2)
             if i != max_iters:
                 patches_small = extract_patches_from_pyramid_with_inv_index(self.scale_pyr, pyr_inv_idxs, LAFs, PS = self.OriNet.PS)        
         return LAFs

@@ -237,13 +237,11 @@ def getHessAffNetHardNet(cfg):
     def apply(image, detector, dataset_transforms, device):
         image = dataset_transforms(image)
         if sum(image.getextrema()) == 0:
-            all_ells.append(None)
-            labels.append(img_label)
-            return [], []
+            return np.array([]), np.array([])
         
         patches, ells = patch_extraction(image, cfg)
         if patches is None or len(patches) == 0:
-            return [], []
+            return np.array([]), np.array([])
         patch_features = torch.from_numpy(patches/255).float().unsqueeze(1)
         if cfg["use_cuda"]:
             patch_features = patch_features.cuda()
@@ -258,7 +256,6 @@ def patchify(dataset, config, init_apply=None):
     labels = []
     inds = []
     all_ells = []
-    ind = 0
     dataset_transforms = transforms.Grayscale(num_output_channels=1)
 
     init, apply = init_apply
@@ -279,7 +276,8 @@ def patchify(dataset, config, init_apply=None):
         all_ells.append(ells)
         inds.extend([i] * patch_features.shape[0])
         labels.append(img_label)
-        result.append(patch_features)
+        if len(patch_features) > 0:
+            result.append(patch_features)
 
     labels = np.array(labels)
     return np.vstack(result), np.array(inds), labels, all_ells

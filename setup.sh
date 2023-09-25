@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/bin/bash -l
 
 usage()
 {
@@ -6,12 +6,12 @@ usage()
     echo "--cpu - use cpu only packages."
 }
 
-cpu=false
+env_manager=mamba
 
 while [ "$1" != "" ]; do
     case $1 in
-        --cpu )                     shift
-                                    cpu=true
+        --conda )                     shift
+                                    env_manager=conda
                                     ;;
         -h | --help )               usage
                                     exit
@@ -21,42 +21,24 @@ while [ "$1" != "" ]; do
     shift
 done
 
+source "$(dirname $(which $env_manager))/activate"
 env_name="norppa"
 
+
+
 echo "Creating and activating $env_name environment"
-conda create -y --prefix /$USER/env/$env_name python=3.7 cudatoolkit=11.1 cyvlfeat opencv ffmpeg cudnn tensorflow==2.6 -c conda-forge
-conda init bash
-conda activate /$USER/env/$env_name
+$env_manager create -y --prefix /$USER/env/$env_name python=3.8 cudatoolkit=11.1 cyvlfeat opencv ffmpeg cudnn -c conda-forge # tensorflow=2.6
+# $env_manager init bash
+# . /root/mambaforge/bin/activate
+$env_manager activate /$USER/env/$env_name
 
-# echo "Installing ipykernel, cyvlfeat and opencv"
-# conda install -y cyvlfeat libopencv opencv py-opencv -c conda-forge
-
-echo "Installing pytorch, torchvision and detectron"
-if [ "$cpu" = true ]
-then
-  # conda install -y pytorch=1.10 torchvision cpuonly cyvlfeat libopencv opencv py-opencv -c conda-forge
-  python -m pip install torch==1.10.1+cpu torchvision==0.11.2+cpu -f https://download.pytorch.org/whl/torch_stable.html
-  python -m pip install detectron2 -f \
-    https://dl.fbaipublicfiles.com/detectron2/wheels/cpu/torch1.10/index.html
-else
-  # conda install -y pytorch=1.10 torchvision cyvlfeat libopencv opencv py-opencv -c conda-forge
-  python -m pip install torch==1.10.0+cu111 torchvision==0.11.0+cu111 -f https://download.pytorch.org/whl/torch_stable.html
-  python -m pip install detectron2 -f https://dl.fbaipublicfiles.com/detectron2/wheels/cu111/torch1.10/index.html
-fi
+echo "Current python: $(which python)"
 
 echo "Installing pip requirements"
+python -m pip install torch torchvision tensorflow==2.8
 python -m pip install -r ./requirements.txt
-
-# mkdir -p $CONDA_PREFIX/etc/conda/activate.d
-# echo 'CUDNN_PATH=$(dirname $(python -c "import nvidia.cudnn;print(nvidia.cudnn.__file__)"))' >> $CONDA_PREFIX/etc/conda/activate.d/env_vars.sh
-# echo 'export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$CONDA_PREFIX/lib/:$CUDNN_PATH/lib' >> $CONDA_PREFIX/etc/conda/activate.d/env_vars.sh
-# source $CONDA_PREFIX/etc/conda/activate.d/env_vars.sh
-
-# conda update -y ffmpeg
-
-# python -m pip install --upgrade numpy
 
 pip install typing-extensions kornia_moons --upgrade
 
-# python -m pip install ipykernel
+python -m pip install ipykernel
 python -m ipykernel install --user --name=$env_name

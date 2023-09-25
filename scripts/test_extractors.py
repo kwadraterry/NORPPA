@@ -1,15 +1,15 @@
 import os
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"]="1"
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
 
 import config
 
 from config import config
 
 
-from datasets import SimpleDataset, DatasetSlice
+from datasets import COCOImageDataset, SimpleDataset, DatasetSlice, COCOLeopardDataset
 
-from tools import load_pickle, curry, apply_pipeline_dataset, curry_sequential, print_topk_accuracy, save_pickle, print_step, resize_dataset
+from tools import get_leopard_singletons, crop_label_step_sequential, load_pickle, curry, apply_pipeline_dataset, curry_sequential, print_topk_accuracy, save_pickle, print_step, resize_dataset
 from reidentification.identify import identify, apply_geometric, encode_patches, getDISK, getKeyNetAffNetHardNet, getHessAffNetHardNet, extract_patches
 from reidentification.find_matches import find_matches
 
@@ -60,7 +60,7 @@ def create_encode_pipeline(dataset_name,
 
         *codebooks_steps,
         # We can also save encoded images if we need to run further experiments later
-        # curry(save_pickle, f"encoded_{dataset_name}_{extractor_name}.pickle"),
+        # curry(save_pickle, f"./output/identification_{dataset_name}_{extractor_name}.pickle"),
     ]
     return encode_pipeline
     
@@ -112,11 +112,15 @@ def create_pipeline(dataset_name,
             print_step("Starting geometrical verification..."),
             curry_sequential(find_matches, cfg),
             curry_sequential(apply_geometric, cfg["geometric"]),
+
+            # curry(save_pickle, f"./output/identification_{dataset_name}_{extractor_name}.pickle"),
+
             curry(print_topk_accuracy, label="After geometric verification:")
+
                 ]
     return pipeline
 
-def process_datasets(datasets, smart_resize_size=256, topk=20):
+def process_datasets(datasets, topk=20):
     """
     Runs the tests on the specified datasets. 
     The dataset is specified by a 4-element tuple:
@@ -130,7 +134,7 @@ def process_datasets(datasets, smart_resize_size=256, topk=20):
     For each dataset, runs complete pipeline (starting from feature extraction) and prints out re-identification accuracy.
 
     """
-    for (dataset_name, dataset, do_resize, codebooks_dataset) in datasets:
+    for (dataset_name, dataset, preprocessing, codebooks_dataset) in datasets:
         print()
         print(f"Dataset name: {dataset_name}")
 
@@ -158,11 +162,11 @@ def process_datasets(datasets, smart_resize_size=256, topk=20):
 
 
         ### Resize dataset if necessary (i.e. when input images are too large)
-        if do_resize:
-            print(f"Resizing dataset (max side is {smart_resize_size})...")
-            dataset = apply_pipeline_dataset(dataset, [curry_sequential(resize_dataset, smart_resize_size)])
+        if preprocessing is not None:
+            print(f"Preprocessing dataset...")
             if not leave_one_out:
-                db_dataset = apply_pipeline_dataset(db_dataset, [curry_sequential(resize_dataset, smart_resize_size)])
+                db_dataset = apply_pipeline_dataset(db_dataset, preprocessing)
+            dataset = apply_pipeline_dataset(dataset, preprocessing)
 
         ### List of feature extractors to test
         extractors = [
@@ -187,16 +191,78 @@ def process_datasets(datasets, smart_resize_size=256, topk=20):
             print()
 
 def main():
+    smart_resize_size = 255
+    smart_resize_preprocess = [print_step(f"Resizing dataset (max side is {smart_resize_size})..."),
+                                curry_sequential(resize_dataset, smart_resize_size)]
     
+    leopard_preprocess = [print_step("Removing singletons..."), 
+                          get_leopard_singletons, 
+                          print_step("Cropping bounding boxes..."),
+                          crop_label_step_sequential(), 
+                          *smart_resize_preprocess]
     datasets = [  
-                  ("norppa_pattern", 
-                        (SimpleDataset("/ekaterina/work/data/dataset-0520/segmented_pattern_resized/database"), 
-                         SimpleDataset("/ekaterina/work/data/dataset-0520/segmented_pattern_resized/query")), False, None),
-                         
-                  ("whaleshark_pattern_train", SimpleDataset("/ekaterina/work/data/whaleshark_norppa_pattern/train"), False, None),
-                  ("whaleshark_base_train", SimpleDataset("/ekaterina/work/data/whaleshark_norppa/train"), True, None),
-                  ("whaleshark_pattern_test", SimpleDataset("/ekaterina/work/data/whaleshark_norppa_pattern/test"), False, "whaleshark_pattern_train"),
-                  ("whaleshark_base_test", SimpleDataset("/ekaterina/work/data/whaleshark_norppa/test"), True, "whaleshark_base_train"),
+                    # ("norppa_segmented", 
+                    #      (SimpleDataset("/ekaterina/work/data/dataset-0520/segmented/database"), 
+                    #       SimpleDataset("/ekaterina/work/data/dataset-0520/segmented/query")), smart_resize_preprocess, None),
+                #   ("whaleshark_train", SimpleDataset("/ekaterina/work/data/whaleshark_norppa/train"), smart_resize_preprocess, "whaleshark_train_05"),
+                #   ("whaleshark_test", SimpleDataset("/ekaterina/work/data/whaleshark_norppa/test"), smart_resize_preprocess, "whaleshark"),
+                    # ("leopard", COCOLeopardDataset("/ekaterina/work/data/coco_leopard/images/test2023",
+                    #                                 "/ekaterina/work/data/coco_leopard/annotations/instances_test2023.json"), leopard_preprocess, None)
+                    ("whaleshark_pie_025_train", COCOImageDataset("/ekaterina/work/data/whaleshark_coco/", 
+                                                            "/ekaterina/work/src/wildlife-embeddings_PIE2/data/coco_whaleshark_mixed_025.csv", 
+                                                            "train", header=("image","name","set")), smart_resize_preprocess, None),
+                    ("whaleshark_pie_025_test", COCOImageDataset("/ekaterina/work/data/whaleshark_coco/", 
+                                                           "/ekaterina/work/src/wildlife-embeddings_PIE2/data/coco_whaleshark_mixed_025.csv", 
+                                                           "test", header=("image","name","set")), smart_resize_preprocess, "whaleshark_pie_025_train"),
+                    ("whaleshark_pie_05_train", COCOImageDataset("/ekaterina/work/data/whaleshark_coco/", 
+                                                            "/ekaterina/work/src/wildlife-embeddings_PIE2/data/coco_whaleshark_mixed_05.csv", 
+                                                            "train", header=("image","name","set")), smart_resize_preprocess, None),
+                    ("whaleshark_pie_05_test", COCOImageDataset("/ekaterina/work/data/whaleshark_coco/", 
+                                                           "/ekaterina/work/src/wildlife-embeddings_PIE2/data/coco_whaleshark_mixed_05.csv", 
+                                                           "test", header=("image","name","set")), smart_resize_preprocess, "whaleshark_pie_05_train"),
+                    ("whaleshark_pie_1_train", COCOImageDataset("/ekaterina/work/data/whaleshark_coco/", 
+                                                            "/ekaterina/work/src/wildlife-embeddings_PIE2/data/coco_whaleshark_mixed_1.csv", 
+                                                            "train", header=("image","name","set")), smart_resize_preprocess, None),
+                    ("whaleshark_pie_1_test", COCOImageDataset("/ekaterina/work/data/whaleshark_coco/", 
+                                                           "/ekaterina/work/src/wildlife-embeddings_PIE2/data/coco_whaleshark_mixed_1.csv", 
+                                                           "test", header=("image","name","set")), smart_resize_preprocess, "whaleshark_pie_1_train"),
+                    # ("sealid_pie_025_train", COCOImageDataset("/ekaterina/work/data/coco_sealid_pattern_resized/", 
+                    #                                         "/ekaterina/work/src/wildlife-embeddings_PIE2/data/coco_sealid_025.csv", 
+                    #                                         "train", header=("image","name","set")), None, None),
+                    # ("sealid_pie_025_test", COCOImageDataset("/ekaterina/work/data/coco_sealid_pattern_resized/", 
+                    #                                        "/ekaterina/work/src/wildlife-embeddings_PIE2/data/coco_sealid_025.csv", 
+                    #                                        "test", header=("image","name","set")), None, "sealid_pie_025_train"),
+                    
+                    # ("sealid_pie_05_train", COCOImageDataset("/ekaterina/work/data/coco_sealid_pattern_resized/", 
+                    #                                         "/ekaterina/work/src/wildlife-embeddings_PIE2/data/coco_sealid_05.csv", 
+                    #                                         "train", header=("image","name","set")), None, None),
+                    # ("sealid_pie_05_test", COCOImageDataset("/ekaterina/work/data/coco_sealid_pattern_resized/", 
+                    #                                        "/ekaterina/work/src/wildlife-embeddings_PIE2/data/coco_sealid_05.csv", 
+                    #                                        "test", header=("image","name","set")), None, "sealid_pie_05_train"),
+                    
+                    # ("sealid_pie_1_train", COCOImageDataset("/ekaterina/work/data/coco_sealid_pattern_resized/", 
+                    #                                         "/ekaterina/work/src/wildlife-embeddings_PIE2/data/coco_sealid_1.csv", 
+                    #                                         "train", header=("image","name","set")), None, None),
+                    # ("sealid_pie_1_test", COCOImageDataset("/ekaterina/work/data/coco_sealid_pattern_resized/", 
+                    #                                        "/ekaterina/work/src/wildlife-embeddings_PIE2/data/coco_sealid_1.csv", 
+                    #                                        "test", header=("image","name","set")), None, "sealid_pie_1_train"),
+
+                    # ("norppa_segmented", 
+                    #      (SimpleDataset("/ekaterina/work/data/dataset-0520/segmented/database"), 
+                    #       SimpleDataset("/ekaterina/work/data/dataset-0520/segmented/query")), smart_resize_preprocess, None),
+                # ("norppa_pattern_train_025", 
+                        # SimpleDataset("/ekaterina/work/data/dataset-0520/segmented_pattern_resized/database", per_class_limit=0.25), None, None),
+                #    ("norppa_pattern", 
+                #          (SimpleDataset("/ekaterina/work/data/dataset-0520/segmented_pattern_resized/database"), 
+                #           SimpleDataset("/ekaterina/work/data/dataset-0520/segmented_pattern_resized/query")), None, None),
+
+                #   ("whaleshark_train_025", SimpleDataset("/ekaterina/work/data/whaleshark_norppa/train", per_class_limit=0.25), smart_resize_preprocess, None),
+                #   ("whaleshark_train", SimpleDataset("/ekaterina/work/data/whaleshark_norppa/train"), smart_resize_preprocess, "whaleshark_train_025"),
+                #   ("whaleshark_test", SimpleDataset("/ekaterina/work/data/whaleshark_norppa/test"), smart_resize_preprocess, "whaleshark_train_025"),
+
+                #   ("whaleshark_train_05", SimpleDataset("/ekaterina/work/data/whaleshark_norppa/train", per_class_limit=0.5), smart_resize_preprocess, None),
+                #   ("whaleshark_train", SimpleDataset("/ekaterina/work/data/whaleshark_norppa/train"), smart_resize_preprocess, "whaleshark_train_05"),
+                #   ("whaleshark_test", SimpleDataset("/ekaterina/work/data/whaleshark_norppa/test"), smart_resize_preprocess, "whaleshark_train_05")
                 ]
     process_datasets(datasets)
 

@@ -24,6 +24,37 @@ import gc
 from tqdm import tqdm
 
 import pickle
+import copy
+
+def get_leopard_singletons(db, threshold=1):
+    classes_nums = {class_id:0 for class_id in db.classes}
+    for ci in [items[1]["class_id"] for items in db.data]:
+        classes_nums[ci] += 1
+    filt = [i for (i, (_, label)) in enumerate(db.data) if classes_nums[label["class_id"]] > threshold]
+    db_new = copy.copy(db)
+    db_new.data = [db_new.data[i] for i in filt]
+    db_new.classes = list(db_new._get_classes(db_new.data))
+    return db_new
+
+def get_smart_shrink_step(max_size):
+    return curry(smart_shrink_step, max_size)
+
+def smart_shrink_step(input, max_size):
+    img, label = input
+    print(label)
+    return [(smart_shrink(img, max_size), label)]
+
+def smart_shrink(img, max_size, return_ratio=False):
+    ratio = min(1, max_size / max(img.size))
+    if ratio < 1:
+        result = img.resize(tuple(int(i * ratio) for i in img.size), Image.LANCZOS).convert("RGB")
+    else:
+        result = img.convert("RGB")
+    print(result.size)
+    if return_ratio:
+        return (result, ratio)
+    else:
+        return result
 
 def save_pickle(x, file):
     with open(file, 'wb') as f_file:
@@ -33,6 +64,11 @@ def save_pickle(x, file):
 def load_pickle(file):
     with open(file, 'rb') as f_file:
         result = pickle.load(f_file)
+    return result
+
+def load_json(file):
+    with open(file, 'rb') as f_file:
+        result = json.load(f_file)
     return result
 
 def print_step(text):
@@ -189,6 +225,18 @@ def crop_imgs_in_dir(src):
             img_cropped = crop_to_bb(img)
             img_cropped.save(source)
 
+def bbox_to_coords(bbox):
+    (l, t, w, h) = bbox
+    return (l, t, l+w, t+h)
+
+def crop_label_step(input, bb_field="bbox"):
+    image, label = input
+    if image is not None:
+        image = image.crop(bbox_to_coords(label[bb_field]))
+    return [(image, label)]
+
+def crop_label_step_sequential(bb_field="bbox"):
+    return curry_sequential(crop_label_step, bb_field=bb_field)
 
 def crop_step(input):
     image, label = input 
@@ -213,11 +261,14 @@ def change_dir(path, new_dir):
     name = os.path.basename(path)
     return os.path.join(new_dir, name)
 
-def get_save_step(dest_dir):
-    return lambda x: save_step(x, dest_dir)
+# def get_save_step(dest_dir):
+#     return lambda x: save_step(x, dest_dir)
 
-def get_save_step(dest_dir, new_path_name=None):
-    return curry_sequential(save_step, dest_dir, new_path_name=new_path_name)
+def get_save_step_sequential(dest_dir, new_path_name=None, verbose=False):
+    return apply_sequential(get_save_step(dest_dir, new_path_name=new_path_name, verbose=verbose))
+
+def get_save_step(dest_dir, new_path_name=None, verbose=False):
+    return curry(save_step, dest_dir, new_path_name=new_path_name, verbose=verbose)
 
 def test_save_step(dest_dir):
     return lambda x: test_step(x, dest_dir)
@@ -234,7 +285,7 @@ def test_step(input, dest_dir):
         
     return [(image, label)]
 
-def save_step(input, dest_dir, new_path_name=None):
+def save_step(input, dest_dir, new_path_name=None, verbose=False):
     image, label = input
     if image is not None:
         os.makedirs(dest_dir, exist_ok=True)
@@ -244,6 +295,8 @@ def save_step(input, dest_dir, new_path_name=None):
             new_path = change_dir(label['file'], dest_dir)
         os.makedirs(os.path.dirname(new_path), exist_ok = True) 
         image.save(new_path, format="png")
+        if verbose:
+            print(f"Saved image to path {new_path}")
         if type(label) is dict and new_path_name is not None:
             label[new_path_name] = new_path
     return [(image, label)]

@@ -7,6 +7,7 @@ import math
 
 from torch.utils.data import Dataset
 import os
+import json
 
 class DatasetSlice(Dataset):
     def __init__(self, dataset, slice=None):
@@ -23,16 +24,71 @@ class DatasetSlice(Dataset):
     def __len__(self):
         return len(self.slice)
 
+
+class COCOLeopardDataset(Dataset):
+
+    def __init__(self, 
+                dataset_dir,
+                annotation):
+        
+        self.dataset_dir = dataset_dir
+        self.annotation = annotation
+
+        self.data = self._get_data(self.annotation)
+        self.classes = list(self._get_classes(self.data))
+
+
+    def __getitem__(self, index):
+        img_path, label = self.data[index]
+        img = read_image(img_path)
+        return img, label
+
+    def __len__(self):
+        return len(self.data)
+
+    def _get_classes(self, data):
+        classes = set([items[1]["class_id"] for items in data])
+        return classes
+
+    def _get_data(self, annotation):
+        """ Get database from COCO annotations """
+        
+        result = []
+        class_ids = []
+        with open(annotation, mode='r') as json_file:
+            json_dict = json.load(json_file)
+        for (img, annot) in zip(json_dict["images"], json_dict["annotations"]):
+            image_path = self._get_image_path(img["file_name"])
+            class_id = len(class_ids)
+            for i in range(len(class_ids)):
+                if annot["id"] in class_ids[i]:
+                    class_id = i
+                    break
+            if class_id == len(class_ids):
+                class_ids.append(annot["individual_ids"])
+            label = annot.copy()
+            label["class_id"] = f"{class_id}_{annot['viewpoint']}"
+            label["file"] = image_path
+            result.append((image_path,label))
+        return result
+
+    def _get_image_path(self, filename):
+        return os.path.join(self.dataset_dir, filename)
+
+
 class COCOImageDataset(Dataset):
 
     def __init__(self, 
                 dataset_dir,
                 annotation,
-                split):
+                split=None,
+                header= ("file","class_id","reid_split")):
+                # ("image","name","set")):
         
         self.split = split
         self.dataset_dir = dataset_dir
         self.annotation = annotation
+        self.header = header
 
         self.data = self._get_data(split, self.annotation)
         self.classes = list(self._get_classes(self.data))
@@ -40,7 +96,7 @@ class COCOImageDataset(Dataset):
 
     def __getitem__(self, index):
         img_path, pid = self.data[index]
-        img = read_image(img_path)
+        img = read_image(img_path) if os.path.isfile(img_path) else None
         return img, {'class_id': pid, 'file': img_path}
 
     def __len__(self):
@@ -51,16 +107,16 @@ class COCOImageDataset(Dataset):
         return classes
 
     def _get_data(self, split, annotation):
-        """ Get database from COCO anntations """
+        """ Get database from COCO annotations """
         
         result = []
         
         with open(annotation, mode='r') as csv_file:
             csv_reader = csv.DictReader(csv_file)
             for row in csv_reader:
-                if (row["reid_split"] == split):
-                    image_path = self._get_image_path(row["file"])
-                    image_pid = row["class_id"]
+                if split is None or (row[self.header[2]] == split):
+                    image_path = self._get_image_path(row[self.header[0]])
+                    image_pid = row[self.header[1]]
                     result.append((image_path,image_pid))
         return result
 

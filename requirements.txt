@@ -1,12 +1,20 @@
 scikit_image
-scikit_learn==1.0.1
-numpy
+scikit_learn #==1.0.1
+numpy==1.23.5
 Pillow
-ipykernel
+# ipykernel
 rawpy
 wget
 kornia
 matplotlib
-ipykernel
+# ipykernel
 extract_patches
-nvidia-cudnn-cu11
+# nvidia-cudnn-cu11
+nltk
+timm==0.4.12
+# einops
+transformers==4.19.2
+ftfy
+protobuf==3.20
+git+https://github.com/kwadraterry/detectron2-xyz
+git+https://github.com/arogozhnikov/einops.git

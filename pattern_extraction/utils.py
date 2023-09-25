@@ -41,7 +41,7 @@ def crop(img_path, flag_multi_class=False):
 
 def smart_resize(img, size, return_ratio=False):
     ratio = size / max(img.size)
-    result = img.resize(tuple(int(i * ratio) for i in img.size), Image.ANTIALIAS)
+    result = img.resize(tuple(int(i * ratio) for i in img.size), Image.LANCZOS)
     if return_ratio:
         return (result, ratio)
     else:
@@ -59,7 +59,7 @@ def thickness_resize(img, thickness=2, return_ratio=False):
     
     thickness_current = area / length
     ratio = thickness / thickness_current
-    resized_img = img.resize(tuple(int(i * ratio) for i in img.size), Image.ANTIALIAS)
+    resized_img = img.resize(tuple(int(i * ratio) for i in img.size), Image.LANCZOS)
     if return_ratio:
         return (resized_img, ratio)
     else:

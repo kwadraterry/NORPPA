@@ -99,8 +99,8 @@ def get_coordinates(qr_patches_all, db_patches_all):
 def save_findHomography(qr_coords,db_coords,est_cfg):
     if len(qr_coords)< 4 or len(db_coords) < 4:
         return np.eye(3),np.full((len(qr_coords), 1), True)
-    return cv2.findHomography(qr_coords.astype(np.float),
-                               db_coords.astype(np.float),
+    return cv2.findHomography(qr_coords.astype(np.double),
+                               db_coords.astype(np.double),
                                method=est_cfg["method"],
                                ransacReprojThreshold=est_cfg["max_reproj_err"],
                                maxIters=est_cfg["max_iters"]) 
