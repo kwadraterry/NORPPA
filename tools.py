@@ -285,7 +285,7 @@ def test_step(input, dest_dir):
         
     return [(image, label)]
 
-def save_step(input, dest_dir, new_path_name=None, verbose=False):
+def save_step(input, dest_dir, new_path_name=None, verbose=False, clear=False):
     image, label = input
     if image is not None:
         os.makedirs(dest_dir, exist_ok=True)
@@ -299,7 +299,11 @@ def save_step(input, dest_dir, new_path_name=None, verbose=False):
             print(f"Saved image to path {new_path}")
         if type(label) is dict and new_path_name is not None:
             label[new_path_name] = new_path
-    return [(image, label)]
+
+    if clear:
+        return []
+    else:
+        return [(image, label)]
 
 def download_url(url, dst):
 

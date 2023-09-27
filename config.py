@@ -15,6 +15,11 @@ from segmentation.seem.seem_segment import init_seem
 from torchvision.datasets.utils import download_url
 from sql import create_connection
 
+import tensorflow as tf
+physical_devices = tf.config.list_physical_devices('GPU')
+if len(physical_devices) > 0:
+    tf.config.experimental.set_memory_growth(physical_devices[0], True)
+
 def init_file(path, url, allow_download=True):
     if Path(path).exists():
         return path
