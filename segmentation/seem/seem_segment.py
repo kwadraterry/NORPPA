@@ -112,7 +112,6 @@ def interactive_infer_image(model, transform, image, reftxt):
 def inference(image, text, model, transform):
     with torch.autocast(device_type='cuda', dtype=torch.float16):
         res = interactive_infer_image(model, transform, image, text)
-        print(res.shape)
         res = cv2.resize(res[0], dsize=image.size, interpolation=cv2.INTER_NEAREST)
         return np.asarray(image) * np.repeat(res[:,:,None], 3, axis=2)
 
