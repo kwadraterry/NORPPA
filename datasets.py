@@ -172,15 +172,17 @@ class SimpleDataset(Dataset):
 
 class QueryDataset(Dataset):
     def __init__(self, 
-                dataset_dir):
+                dataset_dir, class_name="unknown"):
         
         self.dataset_dir = dataset_dir
         self.data = self._get_data(dataset_dir)
+        self.class_name = class_name
+        self.classes = [self.class_name]
 
     def __getitem__(self, index):
         img_path = self.data[index]
         img = read_image(img_path)
-        return img, {'file': img_path, 'dataset_dir':self.dataset_dir}
+        return img, {'class_id': self.class_name, 'file': img_path, 'dataset_dir':self.dataset_dir}
 
     def __len__(self):
         return len(self.data)
