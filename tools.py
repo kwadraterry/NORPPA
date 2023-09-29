@@ -89,13 +89,15 @@ def apply_step(input, step, rest):
 def apply_pipeline(image, pipeline, verbose=False):
     return apply_pipeline_dataset([image], pipeline, verbose=verbose)
 
+def print_step_progress(i, n):
+    print(f"Completed {i}/{n} steps")
 
-def apply_pipeline_dataset(dataset, pipeline, verbose=False):
+def apply_pipeline_dataset(dataset, pipeline, verbose=False, verbose_action=print_step_progress):
     result = dataset
     for (i,step) in enumerate(pipeline):
         result = step(result)
         if verbose:
-            print(f"Completed {i+1}/{len(pipeline)} steps")
+            verbose_action(i+1, len(pipeline))
     return result
 
 def process(SOURCE_DIR, pipeline):

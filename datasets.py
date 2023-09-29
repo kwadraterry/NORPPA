@@ -170,6 +170,35 @@ class SimpleDataset(Dataset):
         return labels
 
 
+class QueryDataset(Dataset):
+    def __init__(self, 
+                dataset_dir):
+        
+        self.dataset_dir = dataset_dir
+        self.data = self._get_data(dataset_dir)
+
+    def __getitem__(self, index):
+        img_path = self.data[index]
+        img = read_image(img_path)
+        return img, {'file': img_path, 'dataset_dir':self.dataset_dir}
+
+    def __len__(self):
+        return len(self.data)
+
+    def _get_data(self, dataset_dir):
+        dataset_dir = Path(dataset_dir)
+        result = []
+        for class_dir in [x for x in dataset_dir.iterdir() if x.is_dir()]:
+            imgs = list(class_dir.iterdir())
+            lim = self._check_limit(imgs)
+            for img in imgs[:lim]:
+                result.append((str(img), class_dir.name))
+        return result
+    
+    def get_labels(self):
+        labels = [items[1] for items in self.data]
+        return labels
+
     
 class GroupDataset(Dataset):
     def __init__(self, 
