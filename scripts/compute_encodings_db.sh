@@ -6,4 +6,4 @@ export PYTHONPATH="${PYTHONPATH}:${NORPPA_DIR}"
 
 cd $NORPPA_DIR
 
-python ./scripts/compute_encodings_db.py "$@" | tee output/compute_encodings_db.txt
+python ./scripts/compute_encodings_db.py "$@" | tee ./output/compute_encodings_db.txt

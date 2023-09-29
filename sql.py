@@ -1,6 +1,7 @@
 import psycopg2
 import numpy as np
 from datetime import datetime
+from pgvector.psycopg2 import register_vector
 
 
 def create_connection():
@@ -9,8 +10,7 @@ def create_connection():
     conn = None
     try:
         conn = psycopg2.connect(
-            # host="172.17.0.1",
-            host="127.0.0.1",
+            host="localhost",
             database="main",
             user="norppa",
             password="norppa")
@@ -166,11 +166,11 @@ def delete_image(conn, image_id):
 
     return result
 
-def insert_database(conn, image_path, seal_id, seal_type, encoding, date):
+def insert_database(conn, image_path, seal_id, date, viewpoints):
     c = conn.cursor()
 
-    c.execute("INSERT INTO database (image_path, seal_id, seal_type, encoding, date) VALUES (%s, %s, %s, %s, %s)", (image_path, seal_id, seal_type, np.array2string(encoding)[1:-1], date))
-    row_id = c.lastrowid      
+    c.execute("INSERT INTO database (image_path, seal_id, date, viewpoint_right, viewpoint_left, viewpoint_top, viewpoint_bottom) VALUES (%s, %s, %s, %s, %s,%s, %s) RETURNING image_id", (image_path, seal_id,  date, bool(viewpoints["right"]), bool(viewpoints["left"]), bool(viewpoints["top"]), bool(viewpoints["bottom"])))
+    row_id = c.fetchone()[0] 
     conn.commit()
 
     c.close()
@@ -178,8 +178,9 @@ def insert_database(conn, image_path, seal_id, seal_type, encoding, date):
 
 def insert_patches(conn, image_id, coordinates, encoding):
     c = conn.cursor()
+    register_vector(conn)
 
-    c.execute("INSERT INTO patches (image_id, coordinates, encoding) VALUES (%s, %s, %s)", (image_id, np.array2string(coordinates)[1:-1], np.array2string(encoding)[1:-1]))
+    c.execute("INSERT INTO patches (image_id, coordinates, encoding) VALUES (%s, %s, %s)", (image_id, coordinates, np.array(encoding)))
                         
     conn.commit()
 
@@ -286,10 +287,10 @@ def get_patch_features_multiple_ids(conn, ids):
     return db_ids, db_features
 
 
-def get_database_sql(conn, seal_type):
+def get_database_sql(conn, species):
     c = conn.cursor()
 
-    c.execute("SELECT image_id, image_path, seal_id, date FROM database WHERE seal_type = %s", (seal_type,))
+    c.execute("SELECT database.image_id, database.image_path, database.seal_id, seals.seal_name, database.date, database.viewpoint_right, database.viewpoint_left, database.viewpoint_top, database.viewpoint_bottom FROM database INNER JOIN seals ON seals.seal_id=database.seal_id WHERE seals.species = %s", (species,))
 
     result = c.fetchall()
     c.close()
@@ -328,6 +329,12 @@ def get_password(conn, username):
     result = c.fetchone()
     c.close()
     return result
+
+def update_viewpoint_sql(conn, image_id, viewpoint):
+    cur = conn.cursor()
+    cur.execute("UPDATE database SET {0}= NOT {0} WHERE image_id = %s".format("viewpoint_" + viewpoint), (image_id,))
+    conn.commit()
+    return True
 
 
 def set_task_to_failed():

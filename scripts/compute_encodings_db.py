@@ -6,12 +6,13 @@ import config
 
 from config import config
 
-
+from sql import *
 from datasets import COCOImageDataset, SimpleDataset, DatasetSlice, COCOLeopardDataset, GroupDataset
 
 from tools import get_leopard_singletons, crop_label_step_sequential, load_pickle, curry, apply_pipeline_dataset, curry_sequential, print_topk_accuracy, save_pickle, print_step, resize_dataset
 from reidentification.identify import identify, apply_geometric, encode_patches, getDISK, getKeyNetAffNetHardNet, getHessAffNetHardNet, extract_patches
 from reidentification.find_matches import find_matches
+from datetime import datetime
 
 def update_codebooks(input, cfg, save_path=None):
     """
@@ -39,6 +40,18 @@ def load_codebooks(input, cfg, load_path=None):
 def upload_encoding_to_database(input, conn):
     fisher, labels = input
     label = labels['labels'][0]
+    seal_id = label.split("_")[0]
+    if len(label.split("_")) > 1:
+        seal_name = label.split("_")[1]
+    img_path = label['file']
+    viewpoints = {"right": False, "left": False, "top": False, "bottom": False}
+    
+    if label['viewpoint'] != "unknown":
+        viewpoints[label['viewpoint']] = True
+    
+    patch_encodings = label['features']
+    pacth_coordinates = label['ellipses']
+
 
     # fisher - fisher vector
     # label['class_id'] - class
@@ -47,6 +60,32 @@ def upload_encoding_to_database(input, conn):
     # label['features'] - n x 64 patch features (np.array)
     # label['ellipses'] - n x 5 patch ellipses ([np.array])
     # label['dataset_dir'] - dataset dir
+
+    existing_ids, existing_paths = get_img_paths_by_id(conn, seal_id)
+    for i in inds:
+        img_id = existing_ids[existing_paths.index(img_path)] if img_path in existing_paths else None
+        now = datetime.now()
+        now = now.strftime("%Y-%m-%d")
+        if img_id is not None:
+            print("Image exists")
+            update_encoding(conn, img_id, patch_encodings, now)
+            clean_patches(conn, img_id)
+        else:
+            seal_id_sql = None
+            seal_name_sql = None
+            seal = get_seal(conn, seal_id)
+            if seal is not None:
+                seal_id_sql, seal_name_sql = seal
+            if seal_id_sql is not None and seal_name_sql is not None and seal_name_sql != seal_name:
+                update_seal_name(conn, seal_id, seal_name)
+            elif seal_id_sql is None:
+                create_seal(conn, seal_id, seal_name, species)
+            img_id = insert_database(conn, img_path, seal_id, now, viewpoints)
+        for j, patch in enumerate(encodings):
+            insert_patches(conn, img_id, patch_coordinates[i], patch_encoding)
+    
+
+    
 
     # Upload whatever using connection conn
 
@@ -114,7 +153,7 @@ def process_datasets(datasets, topk=20):
         print(f"Dataset name: {dataset_name}")
 
         
-        print(f"Path to the dataset: {dataset.dataset_dir}")
+        # print(f"Path to the dataset: {dataset.dataset_dir}")
         print(f"Dataset: {dataset}")
         print()
 
@@ -146,8 +185,7 @@ def process_datasets(datasets, topk=20):
                     extractor_name, 
                     extractor,
                     cfg, 
-                    codebooks_dataset=codebooks_dataset, 
-                    database_dataset=None)
+                    codebooks_dataset=codebooks_dataset)
             
             print()
             apply_pipeline_dataset(dataset, pipeline, True)
@@ -163,9 +201,10 @@ def main():
                           print_step("Cropping bounding boxes..."),
                           crop_label_step_sequential(), 
                           *smart_resize_preprocess]
+    ds = GroupDataset("/ekaterina/work/data/norppa_database", "viewpoint")
     datasets = [  
                     ("norppa_database_segmented_pattern", 
-                     GroupDataset("/ekaterina/work/data/norppa_database", "viewpoint"), 
+                     [ds[i] for i in range(5)], 
                      None, 
                      "norppa_database_segmented_pattern")
                 ]
