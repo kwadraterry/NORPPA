@@ -13,7 +13,7 @@ from HessianAffinePatches import init_affnet, init_orinet, init_hardnet
 from pattern_extraction.extract_pattern import create_unet
 from segmentation.seem.seem_segment import init_seem
 from torchvision.datasets.utils import download_url
-from sql import create_connection
+# from sql import create_connection
 
 import tensorflow as tf
 physical_devices = tf.config.list_physical_devices('GPU')
@@ -35,10 +35,10 @@ def config(use_cuda=True, allow_download=True):
 
     config =  {}     
     base_dir = Path(__file__).resolve().parent
-    mount_path = "/ekaterina/work/data/"
+    # mount_path = "/ekaterina/work/data/"
     
-    path_db = mount_path + "DB.db"
-    config["conn"] = create_connection(path_db)
+    # path_db = mount_path + "DB.db"
+    # config["conn"] = create_connection()
     # config["detectron_predictor"] = create_predictor(init_file(base_dir/"models/R-101-FPN_150ims.pth",  
     #                                 "https://github.com/kwadraterry/NORPPA/raw/models/models/R-101-FPN_150ims.pth", 
     #                                 allow_download=allow_download),
