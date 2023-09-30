@@ -10,7 +10,7 @@ from config import config
 from datasets import SimpleDataset, DatasetSlice
 
 from tonemapping.tonemapping import tonemap_step
-from tools import compose_sequential, load_pickle, curry, apply_pipeline_dataset, apply_sequential, curry_sequential, print_topk_accuracy, save_pickle, print_step, resize_dataset, get_save_step
+from norppa_tools import compose_sequential, load_pickle, curry, apply_pipeline_dataset, apply_sequential, curry_sequential, print_topk_accuracy, save_pickle, print_step, resize_dataset, get_save_step
 from reidentification.identify import identify, apply_geometric, encode_patches, getDISK, getKeyNetAffNetHardNet, getHessAffNetHardNet, extract_patches
 from reidentification.find_matches import find_matches
 

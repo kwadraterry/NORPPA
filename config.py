@@ -5,7 +5,6 @@ import cv2
 import numpy as np
 
 file_folder = Path(__file__).resolve().parent
-sys.path.append(str(file_folder))
 sys.path.append(str(file_folder / "reidentification/hesaff_pytorch"))
 
 

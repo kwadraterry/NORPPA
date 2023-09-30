@@ -17,7 +17,7 @@ tf.config.experimental.set_memory_growth(physical_devices[0], True)
 from torchvision.datasets.utils import download_url
 from datasets import SimpleDataset, DatasetSlice
 
-from tools import *
+from norppa_tools import *
 from tonemapping.tonemapping import tonemap, tonemap_step
 from segmentation.segmentation import segment
 from pattern_extraction.extract_pattern import extract_pattern
@@ -46,7 +46,7 @@ tf.config.experimental.set_memory_growth(physical_devices[0], True)
 from torchvision.datasets.utils import download_url
 from datasets import SimpleDataset, DatasetSlice
 
-from tools import apply_pipeline, crop_step, curry, apply_pipeline_dataset, get_save_step, apply_sequential, compose, compose_sequential
+from norppa_tools import apply_pipeline, crop_step, curry, apply_pipeline_dataset, get_save_step, apply_sequential, compose, compose_sequential
 from tonemapping.tonemapping import tonemap, tonemap_step
 from segmentation.segmentation import segment
 from pattern_extraction.extract_pattern import extract_pattern
