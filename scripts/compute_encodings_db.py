@@ -9,8 +9,8 @@ from config import config
 from sql import *
 from datasets import COCOImageDataset, SimpleDataset, DatasetSlice, COCOLeopardDataset, GroupDataset
 
-from tools import get_leopard_singletons, crop_label_step_sequential, load_pickle, curry, apply_pipeline_dataset, curry_sequential, print_topk_accuracy, save_pickle, print_step, resize_dataset
-from reidentification.identify import identify, apply_geometric, encode_patches, getDISK, getKeyNetAffNetHardNet, getHessAffNetHardNet, extract_patches
+from tools import compose_sequential, get_leopard_singletons, crop_label_step_sequential, load_pickle, curry, apply_pipeline_dataset, curry_sequential, print_topk_accuracy, save_pickle, print_step, resize_dataset
+from reidentification.identify import identify, apply_geometric, encode_patches, encode_patches_single, getDISK, getKeyNetAffNetHardNet, getHessAffNetHardNet, extract_patches, extract_patches_single, encode_dataset, encode_single
 from reidentification.find_matches import find_matches
 from datetime import datetime
 
@@ -40,17 +40,19 @@ def load_codebooks(input, cfg, load_path=None):
 def upload_encoding_to_database(input, conn):
     fisher, labels = input
     label = labels['labels'][0]
-    seal_id = label.split("_")[0]
-    if len(label.split("_")) > 1:
-        seal_name = label.split("_")[1]
-    img_path = label['file']
-    viewpoints = {"right": False, "left": False, "top": False, "bottom": False}
+
+    seal_id = label['class_id'].split("_")[0].lower()
+    seal_name = ""
+    if len(label['class_id'].split("_")) > 1:
+        seal_name = label['class_id'].split("_")[1]
+    img_path = label['file'].split("/")[-1]
+    viewpoints = {"right": False, "left": False, "up": False, "down": False}
     
     if label['viewpoint'] != "unknown":
         viewpoints[label['viewpoint']] = True
     
     patch_encodings = label['features']
-    pacth_coordinates = label['ellipses']
+    patch_coordinates = label['ellipses']
 
 
     # fisher - fisher vector
@@ -62,27 +64,27 @@ def upload_encoding_to_database(input, conn):
     # label['dataset_dir'] - dataset dir
 
     existing_ids, existing_paths = get_img_paths_by_id(conn, seal_id)
-    for i in inds:
-        img_id = existing_ids[existing_paths.index(img_path)] if img_path in existing_paths else None
-        now = datetime.now()
-        now = now.strftime("%Y-%m-%d")
-        if img_id is not None:
-            print("Image exists")
-            update_encoding(conn, img_id, patch_encodings, now)
-            clean_patches(conn, img_id)
-        else:
-            seal_id_sql = None
-            seal_name_sql = None
-            seal = get_seal(conn, seal_id)
-            if seal is not None:
-                seal_id_sql, seal_name_sql = seal
-            if seal_id_sql is not None and seal_name_sql is not None and seal_name_sql != seal_name:
-                update_seal_name(conn, seal_id, seal_name)
-            elif seal_id_sql is None:
-                create_seal(conn, seal_id, seal_name, species)
-            img_id = insert_database(conn, img_path, seal_id, now, viewpoints)
-        for j, patch in enumerate(encodings):
-            insert_patches(conn, img_id, patch_coordinates[i], patch_encoding)
+    
+    img_id = existing_ids[existing_paths.index(img_path)] if img_path in existing_paths else None
+    now = datetime.now()
+    now = now.strftime("%Y-%m-%d")
+    if img_id is not None:
+        print("Image exists")
+        # update_encoding(conn, img_id, patch_encodings, now)
+        clean_patches(conn, img_id)
+    else:
+        seal_id_sql = None
+        seal_name_sql = None
+        seal = get_seal(conn, seal_id)
+        if seal is not None:
+            seal_id_sql, seal_name_sql = seal
+        if seal_id_sql is not None and seal_name_sql is not None and seal_name_sql != seal_name:
+            update_seal_name(conn, seal_id, seal_name)
+        elif seal_id_sql is None:
+            create_seal(conn, seal_id, seal_name, "norppa")
+        img_id = insert_database(conn, img_path, seal_id, now, viewpoints)
+    for j, patch_encoding in enumerate(patch_encodings):
+        insert_patches(conn, img_id, patch_coordinates[j], patch_encoding)
     
 
     
@@ -91,7 +93,9 @@ def upload_encoding_to_database(input, conn):
 
     return []
 
-
+def print_identity(x):
+    print(x)
+    return [x]
 
 def create_encode_pipeline(dataset_name, 
                     extractor_name, 
@@ -99,15 +103,13 @@ def create_encode_pipeline(dataset_name,
                     cfg):
     
     encode_pipeline = [
-        print_step(f"Extracting features using {extractor_name}..."),                   
-        curry(extract_patches, init_apply=extractor, config=cfg),    
+        compose_sequential(
+        # print_identity,
+        # print_step(f"Extracting features using {extractor_name}..."),                   
+        curry(encode_single, init_apply=extractor, cfg=cfg),    
 
-        print_step("Encoding fisher vectors..."),
-        curry(encode_patches, cfg=cfg),
-
-        # We can also save encoded images if we need to run further experiments later
-        # curry(save_pickle, f"./output/identification_{dataset_name}_{extractor_name}.pickle"),
-        curry_sequential(upload_encoding_to_database, cfg["conn"])
+        curry(upload_encoding_to_database, cfg["conn"])
+        )
     ]
     return encode_pipeline
     
@@ -129,8 +131,7 @@ def create_pipeline(dataset_name,
     pipeline = create_encode_pipeline(dataset_name, 
                     extractor_name, 
                     extractor,
-                    cfg, 
-                    compute_codebooks=codebooks_dataset is None)
+                    cfg)
     
     return pipeline
 
@@ -164,7 +165,7 @@ def process_datasets(datasets, topk=20):
 
 
         ### TODO: Create psql connection here
-        # cfg["conn"] = create_connection()
+        cfg["conn"] = create_connection()
 
         ### Create dataset
         # dataset = SimpleDataset(dataset_dir)
@@ -201,10 +202,10 @@ def main():
                           print_step("Cropping bounding boxes..."),
                           crop_label_step_sequential(), 
                           *smart_resize_preprocess]
-    ds = GroupDataset("/ekaterina/work/data/norppa_database", "viewpoint")
+    ds = GroupDataset("/ekaterina/work/data/norppa_database_segmented_pattern", "viewpoint")
     datasets = [  
                     ("norppa_database_segmented_pattern", 
-                     [ds[i] for i in range(5)], 
+                     ds, 
                      None, 
                      "norppa_database_segmented_pattern")
                 ]

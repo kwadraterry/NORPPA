@@ -169,7 +169,7 @@ def delete_image(conn, image_id):
 def insert_database(conn, image_path, seal_id, date, viewpoints):
     c = conn.cursor()
 
-    c.execute("INSERT INTO database (image_path, seal_id, date, viewpoint_right, viewpoint_left, viewpoint_top, viewpoint_bottom) VALUES (%s, %s, %s, %s, %s,%s, %s) RETURNING image_id", (image_path, seal_id,  date, bool(viewpoints["right"]), bool(viewpoints["left"]), bool(viewpoints["top"]), bool(viewpoints["bottom"])))
+    c.execute("INSERT INTO database (image_path, seal_id, date, viewpoint_right, viewpoint_left, viewpoint_up, viewpoint_down) VALUES (%s, %s, %s, %s, %s,%s, %s) RETURNING image_id", (image_path, seal_id,  date, bool(viewpoints["right"]), bool(viewpoints["left"]), bool(viewpoints["up"]), bool(viewpoints["down"])))
     row_id = c.fetchone()[0] 
     conn.commit()
 
@@ -342,5 +342,31 @@ def set_task_to_failed():
     sql = """ UPDATE tasks SET status_name='failed' WHERE status_name not in ('sent', 'ready');"""
     cur = conn.cursor()
     cur.execute(sql)
+    conn.commit()
+    return True
+
+
+
+def get_seal(conn, seal_id):
+    c = conn.cursor()
+
+    c.execute("SELECT seal_id, seal_name FROM seals WHERE seal_id = %s", (seal_id,))
+
+
+    result = c.fetchone()
+    c.close()
+    
+    return result
+
+def update_seal_name(conn, seal_id, seal_name):
+    cur = conn.cursor()
+    cur.execute("UPDATE seals SET seal_name= %s WHERE seal_id = %s", (seal_name, seal_id))
+    conn.commit()
+    return True
+
+
+def create_seal(conn, seal_id, seal_name, species):
+    cur = conn.cursor()
+    cur.execute("INSERT INTO seals (seal_id, seal_name, species) VALUES (%s, %s, %s)", (seal_id, seal_name, species))
     conn.commit()
     return True

@@ -285,6 +285,9 @@ def patchify(dataset, config, init_apply=None):
 def extract_patches(dataset, config, init_apply=None):
     return (dataset, patchify(dataset, config, init_apply))
 
+def extract_patches_single(input, config, init_apply=None):
+    return extract_patches([input], config, init_apply)
+
 def _encode_patches(dataset_patches, config, codebooks=None, group_label='file'):
     (dataset, (features, inds, labels, ellipses)) = dataset_patches
         
@@ -366,14 +369,9 @@ def load_codebooks(cfg):
 
 
 
-def encode_single(image, label, cfg):
-    if image is None:
-        return image
-    dataset_transforms = transforms.Grayscale(num_output_channels=1)
-
-    image = dataset_transforms(image)
-
-    return encode_dataset([(image, label)], cfg)
+def encode_single(input, cfg, group_label='file', init_apply=None, compute_codebooks=False):
+    print(input)
+    return encode_dataset([input], cfg, group_label, init_apply, compute_codebooks)
 
 
 
@@ -382,8 +380,8 @@ def encode_pipeline(input, cfg):
         return input
     return encode_dataset([input], cfg)
 
-def encode_dataset(dataset, cfg, group_label='file', init_apply_encoders=None, compute_codebooks=False):
-    patches = extract_patches(dataset, cfg, init_apply_encoders)
+def encode_dataset(dataset, cfg, group_label='file', init_apply=None, compute_codebooks=False):
+    patches = extract_patches(dataset, cfg, init_apply)
     return encode_patches(patches, cfg, group_label=group_label, compute_codebooks=compute_codebooks)
 
 def encode_patches(dataset, cfg, group_label='file', compute_codebooks=False):
@@ -397,6 +395,8 @@ def encode_patches(dataset, cfg, group_label='file', compute_codebooks=False):
     else:
         return list(zip(query_features, query_labels))
     
+def encode_patches_single(input, cfg, group_label='file', compute_codebooks=False):
+    return encode_patches([input], cfg, group_label, compute_codebooks)
 
 def identify_single(query, database, cfg):
     return identify([query], database, cfg)
