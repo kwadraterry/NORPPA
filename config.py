@@ -15,7 +15,7 @@ from pattern_extraction.extract_pattern import create_unet
 from segmentation.seem.seem_segment import init_seem
 from torchvision.datasets.utils import download_url
 # from sql import create_connection
-
+import torch
 import tensorflow as tf
 physical_devices = tf.config.list_physical_devices('GPU')
 if len(physical_devices) > 0:
@@ -30,12 +30,14 @@ def init_file(path, url, allow_download=True):
     else:
         raise Exception("The file {path} is not found!")
     
-    
 
-def config(use_cuda=True, allow_download=True):   
+# base_dir = Path(__file__).resolve().parent
+
+filedir = Path(__file__).resolve().parent
+
+def config(use_cuda=torch.cuda.is_available(), allow_download=True, base_dir=filedir):   
 
     config =  {}     
-    base_dir = Path(__file__).resolve().parent
     # mount_path = "/ekaterina/work/data/"
     
     # path_db = mount_path + "DB.db"
@@ -100,7 +102,7 @@ def config(use_cuda=True, allow_download=True):
         "max_reproj_err": 0.2,
         "estimator": lambda d, mask: d ** np.sum(mask)
     }
-    seem_model, seem_transform = init_seem(conf_files=str(Path(base_dir/"segmentation/seem/configs/seem/seem_focall_lang.yaml")), model_path=str(Path(base_dir/"models")))
+    seem_model, seem_transform = init_seem(conf_files=str(Path(filedir/"segmentation/seem/configs/seem/seem_focall_lang.yaml")), model_path=str(Path(base_dir/"models")), use_cuda=use_cuda)
     config["seem"] = {
         "model": seem_model,
         "transform": seem_transform
