@@ -212,6 +212,11 @@ class GroupDataset(Dataset):
         self.classes = list(self._get_classes(self.data))
 
     def __getitem__(self, index):
+        if isinstance(index, slice):
+            start = 0 if index.start is None else index.start
+            stop = len(self) if index.stop is None else index.stop
+            step = 1 if index.step is None else index.step
+            return (self[i] for i in range(start, stop, step))
         img_path, pid, group = self.data[index]
         img = read_image(img_path)
         return img, {'class_id': pid, self.group_name: group, 'dataset_dir':self.dataset_dir, 'file':img_path}

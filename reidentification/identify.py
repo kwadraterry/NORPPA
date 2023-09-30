@@ -249,6 +249,12 @@ def getHessAffNetHardNet(cfg):
         return patch_features, ells
     return init, apply
 
+def safe_vstack(ms):
+    if len(ms) == 0:
+        return np.zeros((0,0))
+    else:
+        return np.vstack(ms)
+
 def patchify(dataset, config, init_apply=None):
     if init_apply is None:
         init_apply = getHessAffNetHardNet(config)
@@ -280,7 +286,7 @@ def patchify(dataset, config, init_apply=None):
             result.append(patch_features)
 
     labels = np.array(labels)
-    return np.vstack(result), np.array(inds), labels, all_ells
+    return safe_vstack(result), np.array(inds), labels, all_ells
 
 def extract_patches(dataset, config, init_apply=None):
     return (dataset, patchify(dataset, config, init_apply))
@@ -290,7 +296,8 @@ def extract_patches_single(input, config, init_apply=None):
 
 def _encode_patches(dataset_patches, config, codebooks=None, group_label='file'):
     (dataset, (features, inds, labels, ellipses)) = dataset_patches
-        
+    if len(features) == 0:
+        return None, None, None
     print("Calculating PCA")
     if codebooks is None:
         features, pca = encode_pca(features, n_components=config["pca"], whiten=True)
@@ -370,7 +377,6 @@ def load_codebooks(cfg):
 
 
 def encode_single(input, cfg, group_label='file', init_apply=None, compute_codebooks=False):
-    print(input)
     return encode_dataset([input], cfg, group_label, init_apply, compute_codebooks)
 
 
@@ -390,6 +396,8 @@ def encode_patches(dataset, cfg, group_label='file', compute_codebooks=False):
     else:
         codebooks = load_codebooks(cfg)
     query_features, query_labels, codebooks = _encode_patches(dataset, cfg, codebooks, group_label)
+    if query_features is None:
+        return [None]
     if compute_codebooks:
         return (codebooks, list(zip(query_features, query_labels)))
     else:
