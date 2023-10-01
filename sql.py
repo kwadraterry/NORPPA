@@ -3,6 +3,7 @@ import numpy as np
 from datetime import datetime
 from pgvector.psycopg2 import register_vector
 
+from reidentification.encoding_utils import aggregate_features
 
 def create_connection():
     """ create a database connection to the POSTGRES database
@@ -406,3 +407,14 @@ def get_image(conn, seal_id, image_path):
     c.close()
     
     return result[0]
+
+def aggregate_fisher_per_class(conn, codebooks, viewpoints = ["right", "left", "up", "down"]):
+    all_classes = get_classes(conn) # TODO
+    db = []
+    # viewpoints = ["right", "left", "up", "down"]
+    encoding_params = codebooks["gmm"]
+    for class_id in all_classes:
+        for viewpoint in viewpoints:
+            all_features = get_features_for_aggregation(conn, class_id, viewpoint)
+            encoded = aggregate_features(all_features, encoding_params) # from reidentification.encoding_utils
+            db.append((encoded, {"class_id":class_id, "viewpoint":viewpoint}))

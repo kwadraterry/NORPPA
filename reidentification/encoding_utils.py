@@ -65,6 +65,9 @@ def l2_normalize(v):
 def power_normalize(v, p=0.5):
     return np.sign(v) * np.power(np.abs(v), p)
 
+def aggregate_features(features, encoding_params):
+    return fisher(features, *encoding_params, improved=True)
+
 def encode_all_images(features, inds, encoding_params):
     img_inds = np.unique(inds)
     n = img_inds[-1] + 1
