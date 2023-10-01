@@ -408,13 +408,31 @@ def get_image(conn, seal_id, image_path):
     
     return result[0]
 
-def aggregate_fisher_per_class(conn, codebooks, viewpoints = ["right", "left", "up", "down"]):
-    all_classes = get_classes(conn) # TODO
+def get_seals(conn, species):
+    c = conn.cursor()
+
+    c.execute("SELECT seal_id FROM seals WHERE species = %s", (species,))
+
+    result = c.fetchall()
+    c.close()
+    return result
+
+def get_features_for_aggregation(conn, seal_id, viewpoint):
+    c = conn.cursor()
+
+    c.execute("SELECT patches.encoding FROM patches INNER JOIN database ON patches.image_id=database.image_id WHERE database.seal_id = %s and database.{0}=true".format("viewpoint_" + viewpoint), (seal_id,))
+
+    result = c.fetchall()
+    c.close()
+    return result
+
+def aggregate_fisher_per_class(conn, codebooks, species, viewpoints = ["right", "left", "up", "down"]):
+    all_seals = get_seals(conn, species) # TODO
     db = []
     # viewpoints = ["right", "left", "up", "down"]
     encoding_params = codebooks["gmm"]
-    for class_id in all_classes:
+    for seal_id in all_seals:
         for viewpoint in viewpoints:
-            all_features = get_features_for_aggregation(conn, class_id, viewpoint)
+            all_features = get_features_for_aggregation(conn, seal_id, viewpoint)
             encoded = aggregate_features(all_features, encoding_params) # from reidentification.encoding_utils
-            db.append((encoded, {"class_id":class_id, "viewpoint":viewpoint}))
+            db.append((encoded, {"class_id":seal_id, "viewpoint":viewpoint}))
