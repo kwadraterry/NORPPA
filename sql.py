@@ -4,6 +4,7 @@ from datetime import datetime
 from pgvector.psycopg2 import register_vector
 
 from reidentification.encoding_utils import aggregate_features
+from tqdm import tqdm
 
 def create_connection():
     """ create a database connection to the POSTGRES database
@@ -430,12 +431,16 @@ def get_features_for_aggregation(conn, seal_id, viewpoint):
     return result
 
 def aggregate_fisher_per_class(conn, codebooks, species, viewpoints = ["right", "left", "up", "down"]):
-    all_seals = get_seals(conn, species) # TODO
+    all_seals = [x[0] for x in get_seals(conn, species)] # TODO
     db = []
-    # viewpoints = ["right", "left", "up", "down"]
     encoding_params = codebooks["gmm"]
-    for seal_id in all_seals:
+    for seal_id in tqdm(all_seals):
         for viewpoint in viewpoints:
             all_features = get_features_for_aggregation(conn, seal_id, viewpoint)
+            
+            if len(all_features) == 0:
+                continue
+            all_features = np.array(all_features)[:, 0, :]
             encoded = aggregate_features(all_features, encoding_params) # from reidentification.encoding_utils
             db.append((encoded, {"class_id":seal_id, "viewpoint":viewpoint}))
+    return db
