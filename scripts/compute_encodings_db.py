@@ -38,6 +38,8 @@ def load_codebooks(input, cfg, load_path=None):
     return input
 
 def upload_encoding_to_database(input, conn):
+    if input is None:
+        return [None]
     fisher, labels = input
     label = labels['labels'][0]
 
@@ -205,7 +207,7 @@ def main():
     ds = GroupDataset("/ekaterina/work/data/norppa_database_segmented_pattern", "viewpoint")
     datasets = [  
                     ("norppa_database_segmented_pattern", 
-                     ds, 
+                     ds[7290:], 
                      None, 
                      "norppa_database_segmented_pattern")
                 ]
