@@ -23,7 +23,7 @@ import cv2
 from collections import namedtuple
 
 
-def init_seem(conf_files="segmentation/seem/configs/seem/seem_focall_lang.yaml", model_path=".", use_cuda=torch.cuda.is_available()):
+def init_seem(conf_files="segmentation/seem/configs/seem/seem_focalt_lang.yaml", model_path=".", use_cuda=torch.cuda.is_available()):
 
     Arguments = namedtuple('Arguments', 'conf_files')
 
@@ -33,27 +33,31 @@ def init_seem(conf_files="segmentation/seem/configs/seem/seem_focall_lang.yaml",
 
 
     # META DATA
-    cur_model = 'None'
+    # cur_model = 'None'
     if 'focalt' in conf_files:
         pretrained_pth = os.path.join(model_path, "seem_focalt_v2.pt")
         if not os.path.exists(pretrained_pth):
             os.system("wget -P {} {}".format(model_path, "https://huggingface.co/xdecoder/SEEM/resolve/main/seem_focalt_v2.pt"))
-        cur_model = 'Focal-T'
+        # cur_model = 'Focal-T'
     elif 'focal' in conf_files:
         pretrained_pth = os.path.join(model_path, "seem_focall_v1.pt")
         if not os.path.exists(pretrained_pth):
             os.system("wget -P {} {}".format(model_path, "https://huggingface.co/xdecoder/SEEM/resolve/main/seem_focall_v1.pt"))
-        cur_model = 'Focal-L'
+        # cur_model = 'Focal-L'
 
     '''
     build model
     '''
+    print("Building SEEM model...")
     model = BaseModel(opt, build_model(opt)).from_pretrained(pretrained_pth).eval()
+    print("Built SEEM model")
     if use_cuda:
         model = model.cuda()
+        
+    print("Initializing text embeddings...")
     with torch.no_grad():
         model.model.sem_seg_head.predictor.lang_encoder.get_text_embeddings(COCO_PANOPTIC_CLASSES + ["background"], is_eval=True)
-
+    print("Initialized text embeddings")
 
     t = []
     t.append(transforms.Resize(512, interpolation=Image.BICUBIC))
@@ -115,8 +119,10 @@ def interactive_infer_image(model, transform, image, reftxt):
 
 @torch.no_grad()
 def inference(image, text, model, transform):
-    device = 'cuda' if next(model.parameters()).is_cuda else 'cpu'
-    with torch.autocast(device_type=device, dtype=torch.float16):
+    use_cuda = next(model.parameters()).is_cuda
+    # device = 'cuda' if use_cuda else 'cpu'
+    # dtype = torch.float16 if use_cuda else torch.float32
+    with torch.autocast(device_type='cuda', dtype=torch.float16, enabled=use_cuda):
         res = interactive_infer_image(model, transform, image, text)
         res = cv2.resize(res[0], dsize=image.size, interpolation=cv2.INTER_NEAREST)
         return np.asarray(image) * np.repeat(res[:,:,None], 3, axis=2)

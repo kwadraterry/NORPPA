@@ -50,7 +50,7 @@ def upload_encoding_to_database(input, conn):
     img_path = label['file'].split("/")[-1]
     viewpoints = {"right": False, "left": False, "up": False, "down": False}
     
-    if label['viewpoint'] != "unknown":
+    if label.get('viewpoint', 'unknown') != "unknown":
         viewpoints[label['viewpoint']] = True
     
     patch_encodings = label['features']
@@ -83,7 +83,7 @@ def upload_encoding_to_database(input, conn):
         if seal_id_sql is not None and seal_name_sql is not None and seal_name_sql != seal_name:
             update_seal_name(conn, seal_id, seal_name)
         elif seal_id_sql is None:
-            create_seal(conn, seal_id, seal_name, "norppa")
+            create_seal(conn, seal_id, seal_name, "unknown")
         img_id = insert_database(conn, img_path, seal_id, now, viewpoints)
     for j, patch_encoding in enumerate(patch_encodings):
         insert_patches(conn, img_id, patch_coordinates[j], patch_encoding)
@@ -204,10 +204,13 @@ def main():
                           print_step("Cropping bounding boxes..."),
                           crop_label_step_sequential(), 
                           *smart_resize_preprocess]
-    ds = GroupDataset("/ekaterina/work/data/norppa_database_segmented_pattern", "viewpoint")
     datasets = [  
-                    ("norppa_database_segmented_pattern", 
-                     ds[7290:], 
+                    # ("norppa_database_segmented_pattern", 
+                    #  GroupDataset("/ekaterina/work/data/norppa_database_segmented_pattern", "viewpoint"), 
+                    #  None, 
+                    #  "norppa_database_segmented_pattern")
+                     ("norppa_database_pattern_unknown", 
+                     SimpleDataset("/ekaterina/work/data/norppa_database_pattern_unknown"), 
                      None, 
                      "norppa_database_segmented_pattern")
                 ]

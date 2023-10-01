@@ -27,6 +27,7 @@ class LanguageEncoder(nn.Module):
         lang_encoder,
         lang_projection,
         max_token_num,
+        device
     ):
         super().__init__()
         self.tokenizer = tokenizer
@@ -35,6 +36,7 @@ class LanguageEncoder(nn.Module):
         self.lang_proj = lang_projection
         self.max_token_num = max_token_num
         self.logit_scale = nn.Parameter(torch.ones([]))
+        self.device = device
 
     @classmethod
     def from_config(cls, cfg):
@@ -47,13 +49,15 @@ class LanguageEncoder(nn.Module):
         dim_projection = cfg['MODEL']['DIM_PROJ']
         lang_projection = nn.Parameter(torch.empty(dim_lang, dim_projection))
         trunc_normal_(lang_projection, std=.02)
-        
+        device = cfg['device']
+
         return {
             "tokenizer": tokenizer,
             "tokenizer_type": tokenizer_type,
             "lang_encoder": lang_encoder,
             "lang_projection": lang_projection,
             "max_token_num": max_token_num,
+            "device": device
         }
 
     def get_text_embeddings(self, class_names, name='default', is_eval=False, add_bgd=False, prompt=True, norm=True):
@@ -84,7 +88,7 @@ class LanguageEncoder(nn.Module):
             arbitary_tokens = torch.stack(input_ids)
             arbitary_attention_masks = torch.stack(attention_masks)
 
-            text_emb = self.forward_language((arbitary_tokens.cuda(), arbitary_attention_masks.cuda()), norm=norm)
+            text_emb = self.forward_language((arbitary_tokens.to(device=self.device), arbitary_attention_masks.to(device=self.device)), norm=norm)
             setattr(self, '{}_text_embeddings'.format(name), text_emb)
         else:
             with torch.no_grad():
@@ -92,7 +96,7 @@ class LanguageEncoder(nn.Module):
                     tokens = self.tokenizer(
                         txts, padding='max_length', truncation=True, max_length=self.max_token_num, return_tensors='pt'
                     )
-                    clss_embedding = self.forward_language((tokens['input_ids'].cuda(), tokens['attention_mask'].cuda()), norm=norm)
+                    clss_embedding = self.forward_language((tokens['input_ids'].to(device=self.device), tokens['attention_mask'].to(device=self.device)), norm=norm)
                     clss_embedding = clss_embedding.mean(dim=0)
                     clss_embedding /= clss_embedding.norm()
                     return clss_embedding
@@ -118,7 +122,7 @@ class LanguageEncoder(nn.Module):
             tokens = self.tokenizer(
                 txts, padding='max_length', truncation=True, max_length=self.max_token_num, return_tensors='pt'
             )
-            tokens = {key: value.cuda() for key, value in tokens.items()}
+            tokens = {key: value.to(device=self.device) for key, value in tokens.items()}
         else:
             tokens = txts
         token_emb, class_emb = self.forward_language_token((tokens['input_ids'], tokens['attention_mask']), norm=norm)

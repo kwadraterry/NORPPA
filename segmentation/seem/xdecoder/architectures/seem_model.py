@@ -139,7 +139,7 @@ class SEEM_Model(nn.Module):
         interactive_mode = 'best'
         interactive_iter = 20
         dilation = 3
-        dilation_kernel = torch.ones((1, 1, dilation, dilation), device=torch.cuda.current_device())
+        dilation_kernel = torch.ones((1, 1, dilation, dilation), device=cfg['device'])#torch.cuda.current_device())
 
         return {
             "backbone": backbone,
@@ -785,7 +785,7 @@ class SEEM_Model(nn.Module):
         n,_,h,w=select_mask.shape
         mask_dt = (distance_transform((~F.pad(select_mask, pad=(1, 1, 1, 1), mode='constant', value=0)).float())[:,:,1:-1,1:-1]).reshape(n,-1)
         max_xy_idx = torch.stack([torch.arange(n), mask_dt.max(dim=-1)[1].cpu()]).tolist()
-        next_mask = torch.zeros(gt_masks.shape, device=torch.cuda.current_device()).bool()
+        next_mask = torch.zeros(gt_masks.shape, device=self.device()).bool()#torch.cuda.current_device()
         next_mask = next_mask.view(n,-1)
         next_mask[max_xy_idx] = True
         next_mask = next_mask.reshape((n,1,h,w)).float()
