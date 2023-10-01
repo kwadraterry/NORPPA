@@ -406,6 +406,9 @@ def get_image(conn, seal_id, image_path):
     result = c.fetchone()
     c.close()
     
+    if result is None:
+        return None
+
     return result[0]
 
 def aggregate_fisher_per_class(conn, codebooks, viewpoints = ["right", "left", "up", "down"]):

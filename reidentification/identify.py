@@ -140,7 +140,7 @@ def cvkeypoint_to_ell(keypoint):
     return [keypoint.pt[0], keypoint.pt[1], keypoint.size/2, keypoint.size/2, keypoint.angle * math.pi/180]
 
 def extract_sift_patches(image, patch_size=32, sigma=1.6, nfeatures=480, nOctaveLayers=3, contrastThreshold=0.02, edgeThreshold=5, scale=2):
-    image = np.array(image)fisher_singleenco
+    image = np.array(image)
     sift = cv2.SIFT_create(nfeatures=nfeatures, nOctaveLayers=nOctaveLayers, contrastThreshold=contrastThreshold, edgeThreshold=edgeThreshold, sigma=sigma)
     keypoints = sift.detect(image)
     

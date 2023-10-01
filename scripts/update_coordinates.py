@@ -53,6 +53,8 @@ def update_coordinates(input, conn):
         viewpoints[label['viewpoint']] = True
 
     img_id = get_image(conn, seal_id, img_path)
+    if img_id is None:
+        return []
     
     ids, coords = get_patch_coordinates(conn, img_id)
 
@@ -175,7 +177,7 @@ def main():
                           *smart_resize_preprocess]
     datasets = [  
                     ("norppa_database_segmented_pattern", 
-                     GroupDataset("/ekaterina/work/data/norppa_database_segmented_pattern", "viewpoint"), 
+                     GroupDataset("/ekaterina/work/data/norppa_database_segmented_pattern", "viewpoint")[7290:], 
                      None, 
                      "norppa_database_segmented_pattern")
                     #  ("norppa_database_pattern_unknown", 
