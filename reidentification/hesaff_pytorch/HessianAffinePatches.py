@@ -12,7 +12,7 @@ from skimage.filters import unsharp_mask
 import math
 from HardNet import HardNet
 
-def init_hardnet(model_weights, use_cuda=True):
+def init_hardnet(model_weights, use_cuda=torch.cuda.is_available()):
     descriptor = HardNet()
     hncheckpoint = torch.load(model_weights, map_location=torch.device('cpu'))
     descriptor.load_state_dict(hncheckpoint['state_dict'])
@@ -21,7 +21,7 @@ def init_hardnet(model_weights, use_cuda=True):
         descriptor = descriptor.cuda()
     return descriptor
 
-def init_affnet(weightd_fname, patch_size=32, use_cuda=True):
+def init_affnet(weightd_fname, patch_size=32, use_cuda=torch.cuda.is_available()):
     AffNetPix = AffNetFast(PS=patch_size)
 
     checkpoint = torch.load(weightd_fname, map_location=torch.device('cpu'))
@@ -32,7 +32,7 @@ def init_affnet(weightd_fname, patch_size=32, use_cuda=True):
         AffNetPix.cuda()
     return AffNetPix
 
-def init_orinet(o_fname, patch_size=32, use_cuda=True):
+def init_orinet(o_fname, patch_size=32, use_cuda=torch.cuda.is_available()):
     ONet = OriNetFast(PS=patch_size)
     checkpoint = torch.load(o_fname, map_location=torch.device('cpu'))
     ONet.load_state_dict(checkpoint['state_dict'])

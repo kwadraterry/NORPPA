@@ -9,7 +9,7 @@ from config import config
 from sql import *
 from datasets import COCOImageDataset, SimpleDataset, DatasetSlice, COCOLeopardDataset, GroupDataset
 
-from tools import compose_sequential, get_leopard_singletons, crop_label_step_sequential, load_pickle, curry, apply_pipeline_dataset, curry_sequential, print_topk_accuracy, save_pickle, print_step, resize_dataset
+from norppa_tools import compose_sequential, get_leopard_singletons, crop_label_step_sequential, load_pickle, curry, apply_pipeline_dataset, curry_sequential, print_topk_accuracy, save_pickle, print_step, resize_dataset
 from reidentification.identify import identify, apply_geometric, encode_patches, encode_patches_single, getDISK, getKeyNetAffNetHardNet, getHessAffNetHardNet, extract_patches, extract_patches_single, encode_dataset, encode_single
 from reidentification.find_matches import find_matches
 from datetime import datetime

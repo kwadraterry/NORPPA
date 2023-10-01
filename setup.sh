@@ -30,15 +30,18 @@ echo "Creating and activating $env_name environment"
 $env_manager create -y --prefix /$USER/env/$env_name python=3.8 cudatoolkit=11.1 cyvlfeat opencv ffmpeg cudnn -c conda-forge # tensorflow=2.6
 # $env_manager init bash
 # . /root/mambaforge/bin/activate
-$env_manager activate /$USER/env/$env_name
+# $env_manager activate /$USER/env/$env_name
 
-echo "Current python: $(which python)"
+# echo "Current python: $(which python)"
+
+run_in_env="$env_manager run -p /$USER/env/$env_name"
 
 echo "Installing pip requirements"
-python -m pip install torch torchvision tensorflow==2.8
-python -m pip install -r ./requirements.txt
+$run_in_env python -m pip install torch torchvision tensorflow==2.8
+echo "Installing requirements file"
+$run_in_env python -m pip install -r ./requirements.txt
 
-pip install typing-extensions kornia_moons --upgrade
+$run_in_env python -m pip install typing-extensions kornia_moons --upgrade
 
-python -m pip install ipykernel
-python -m ipykernel install --user --name=$env_name
+$run_in_env python -m pip install ipykernel
+$run_in_env python -m ipykernel install --user --name=$env_name

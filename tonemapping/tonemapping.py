@@ -12,7 +12,7 @@ be generated automatically preseving the structure of the source directory.
 from argparse import ArgumentParser
 import json
 import os
-from tools import is_image
+from norppa_tools import is_image
 import subprocess
 
 from pathlib import Path

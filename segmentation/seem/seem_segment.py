@@ -23,7 +23,7 @@ import cv2
 from collections import namedtuple
 
 
-def init_seem(conf_files="segmentation/seem/configs/seem/seem_focall_lang.yaml", model_path="."):
+def init_seem(conf_files="segmentation/seem/configs/seem/seem_focall_lang.yaml", model_path=".", use_cuda=torch.cuda.is_available()):
 
     Arguments = namedtuple('Arguments', 'conf_files')
 
@@ -48,7 +48,9 @@ def init_seem(conf_files="segmentation/seem/configs/seem/seem_focall_lang.yaml",
     '''
     build model
     '''
-    model = BaseModel(opt, build_model(opt)).from_pretrained(pretrained_pth).eval().cuda()
+    model = BaseModel(opt, build_model(opt)).from_pretrained(pretrained_pth).eval()
+    if use_cuda:
+        model = model.cuda()
     with torch.no_grad():
         model.model.sem_seg_head.predictor.lang_encoder.get_text_embeddings(COCO_PANOPTIC_CLASSES + ["background"], is_eval=True)
 
@@ -60,11 +62,14 @@ def init_seem(conf_files="segmentation/seem/configs/seem/seem_focall_lang.yaml",
     return (model, transform)
 
 def interactive_infer_image(model, transform, image, reftxt):
+    use_cuda = next(model.parameters()).is_cuda
     image_ori = transform(image)
     width = image_ori.size[0]
     height = image_ori.size[1]
     image_ori = np.asarray(image_ori)
-    images = torch.from_numpy(image_ori.copy()).permute(2,0,1).cuda()
+    images = torch.from_numpy(image_ori.copy()).permute(2,0,1)
+    if use_cuda:
+        images = images.cuda()
 
     # stroke_inimg = None
     # stroke_refimg = None
@@ -100,8 +105,8 @@ def interactive_infer_image(model, transform, image, reftxt):
     
     # interpolate mask to ori size
     pred_masks_pos = (F.interpolate(pred_masks_pos[None,], image_size[-2:], mode='bilinear')[0,:,:data['height'],:data['width']] > 0.0).float().cpu().numpy()
-
-    torch.cuda.empty_cache()
+    if use_cuda:
+        torch.cuda.empty_cache()
     # return Image.fromarray(res), stroke_inimg, stroke_refimg
     return pred_masks_pos
 
@@ -110,7 +115,8 @@ def interactive_infer_image(model, transform, image, reftxt):
 
 @torch.no_grad()
 def inference(image, text, model, transform):
-    with torch.autocast(device_type='cuda', dtype=torch.float16):
+    device = 'cuda' if next(model.parameters()).is_cuda else 'cpu'
+    with torch.autocast(device_type=device, dtype=torch.float16):
         res = interactive_infer_image(model, transform, image, text)
         res = cv2.resize(res[0], dsize=image.size, interpolation=cv2.INTER_NEAREST)
         return np.asarray(image) * np.repeat(res[:,:,None], 3, axis=2)
