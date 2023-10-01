@@ -53,16 +53,23 @@ def ell2plotMatch(plt, ell, colors, shift=[0, 0], scale=1, n_rad=15, max_opacity
 
 def prepare_query(query_label, uncropped, path_to_load):
     load_path =  query_label[path_to_load]#.replace("whaleshark_norppa_tonemapped_pattern_maxim","whaleshark_norppa_tonemapped")
-    if query_label.get("resize_ratio", 0) != 0:
-        query_ratio = query_label["resize_ratio"]
-    else:
-        query_ratio = 1
-    if uncropped and query_label.get("bb", 0) != 0:
-        query_shift = query_label["bb"][:2]
-    else:
-        query_shift = [0, 0]
-    query_shift = [x*query_ratio for x in query_shift]
-    query_img = rescale_img(Image.open(load_path), query_ratio)
+    # if query_label.get("resize_ratio", 0) != 0:
+    #     query_ratio = query_label["resize_ratio"]
+    # else:
+    #     query_ratio = 1
+   
+    query_img = Image.open(load_path) # rescale_img(Image.open(load_path), query_ratio)
+    query_ratio = query_img.width
+    bb = query_label.get("bb", [0, 0, query_img.width, query_img.height])
+    # if uncropped and query_label.get("bb", 0) != 0:
+    #     query_shift = query_label["bb"][:2]
+    #     query_ratio = query_label["bb"][2]
+    # else:
+    #     query_shift = [0, 0]
+    query_shift = bb[:2]
+    query_ratio = bb[2]
+    # query_shift = [x*query_ratio for x in query_shift]
+
     return query_img, query_shift, query_ratio
 
 filenum = 0
@@ -87,8 +94,12 @@ def visualise_match(input, topk=5, path_to_load="file", uncropped=True, gap=20, 
         load_path = db_data[path_to_load]
         db_img = Image.open(load_path)
         db_img, ratio = resize_to_img(db_img, query_img)
-        db_ratio = ratio/db_data.get("resize_ratio", 1)
-        
+        # db_ratio = ratio/db_data.get("resize_ratio", 1)
+        # db_ratio = db_img.width
+        bb = db_data.get("bb", [0, 0, db_img.width, db_img.height])
+        db_ratio = bb[2]
+        db_ratio *= ratio
+
         shift = [x*ratio for x in (db_data.get("bb", [0, 0])[:2] if uncropped else [0, 0])]
         shift = (shift[0], shift[1] + query_img.size[1] + gap)
         full_img = Image.new('RGB', (query_img.size[0], query_img.size[1]+db_img.size[1]+gap), color="white")
@@ -130,7 +141,7 @@ def visualise_match(input, topk=5, path_to_load="file", uncropped=True, gap=20, 
             # max opacity can be determined with the similarity parameter as well. The same applies to inlier plot loop. 
             max_opacity = sim # .4
             
-            p1 = ell2plotMatch(plt, LAF_q, colors_out, shift=query_shift,n_rad=n_rad, max_opacity=max_opacity, n_pts=n_pts)
+            p1 = ell2plotMatch(plt, LAF_q, colors_out, shift=query_shift, scale=query_ratio,n_rad=n_rad, max_opacity=max_opacity, n_pts=n_pts)
             p2 = ell2plotMatch(plt, LAF_db, colors_out, shift=shift, scale=db_ratio, n_rad=n_rad, max_opacity=max_opacity, n_pts=n_pts)
             
             # draw line between patch centers
@@ -139,7 +150,7 @@ def visualise_match(input, topk=5, path_to_load="file", uncropped=True, gap=20, 
         # Plotting inliers
         for LAF_q, LAF_db, sim in zip(inliers_qr, inliers_db, similarity):
             max_opacity = sim # .4
-            p1 = ell2plotMatch(plt, LAF_q, colors_in, shift=query_shift,n_rad=n_rad, max_opacity=max_opacity, n_pts=n_pts)
+            p1 = ell2plotMatch(plt, LAF_q, colors_in, shift=query_shift, scale=query_ratio,n_rad=n_rad, max_opacity=max_opacity, n_pts=n_pts)
             p2 = ell2plotMatch(plt, LAF_db, colors_in, shift=shift, scale=db_ratio, n_rad=n_rad, max_opacity=max_opacity, n_pts=n_pts)
             
             plt.plot([p1[0], p2[0]], [p1[1], p2[1]], color=(*inlier_color, min(max_opacity* 3, 1)))

@@ -279,7 +279,7 @@ def patchify(dataset, config, init_apply=None):
         
         patch_features, ells = apply(image, detector, dataset_transforms, device)
         
-        all_ells.append(ells)
+        all_ells.append(np.array(ells)/image.width)
         inds.extend([i] * patch_features.shape[0])
         labels.append(img_label)
         if len(patch_features) > 0:
