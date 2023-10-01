@@ -14,6 +14,7 @@ def create_connection():
             database="main",
             user="norppa",
             password="norppa")
+        register_vector(conn)
     except psycopg2.Error as e:
         print(e)
     print("CONNECTION", conn)
@@ -255,13 +256,25 @@ def clean_patches(conn, img_id):
 def get_patches(conn, image_id):
     c = conn.cursor()
 
-    c.execute("SELECT coordinates, encoding FROM patches WHERE image_id = %s", (int(image_id),))
+    c.execute("SELECT patch_id, coordinates, encoding FROM patches WHERE image_id = %s", (int(image_id),))
 
     result = c.fetchall()
-    coordinates = np.array([np.fromstring(res[0], dtype=np.float32, sep=' ') for res in result])
-    db_features = np.array([np.fromstring(res[1], dtype=np.float32, sep=' ') for res in result])
+    ids = np.array([res[0] for res in result])
+    coordinates = np.array([res[1] for res in result])
+    db_features = np.array([res[2] for res in result])
     c.close()
-    return coordinates, db_features
+    return ids, coordinates, db_features
+
+def update_patch_coordinates(conn, patch_id, coordinates):
+    c = conn.cursor()
+    register_vector(conn)
+
+    sql = """ UPDATE patches SET coordinates = %s WHERE patch_id = %s """
+    
+    c.execute(sql, (coordinates, int(patch_id)))                    
+    conn.commit()
+
+    c.close()
 
 def get_patch_features(conn, image_id):
     c = conn.cursor()
@@ -272,6 +285,18 @@ def get_patch_features(conn, image_id):
     db_features = np.array([np.fromstring(res[0], dtype=np.float32, sep=' ') for res in result])
     c.close()
     return db_features
+
+def get_patch_coordinates(conn, image_id):
+    c = conn.cursor()
+
+    c.execute("SELECT patch_id, coordinates FROM patches WHERE image_id = %s", (int(image_id),))
+
+    result = c.fetchall()
+    # print(result)
+    ids = np.array([res[0] for res in result])
+    db_features = np.array([res[1] for res in result])
+    c.close()
+    return ids, db_features
 
 def get_patch_features_multiple_ids(conn, ids):
     c = conn.cursor()
@@ -370,3 +395,14 @@ def create_seal(conn, seal_id, seal_name, species):
     cur.execute("INSERT INTO seals (seal_id, seal_name, species) VALUES (%s, %s, %s)", (seal_id, seal_name, species))
     conn.commit()
     return True
+
+def get_image(conn, seal_id, image_path):
+    c = conn.cursor()
+
+    c.execute("SELECT image_id FROM database WHERE seal_id = %s AND image_path= %s ", (seal_id,image_path))
+
+
+    result = c.fetchone()
+    c.close()
+    
+    return result[0]
