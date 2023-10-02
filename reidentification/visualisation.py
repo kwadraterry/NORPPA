@@ -129,13 +129,15 @@ def visualise_match(input, topk=5, path_to_load="file", uncropped=True, gap=20, 
            
         inliers_qr = [point for point, i in zip(query_patches, mask) if i == 1]
         inliers_db = [point for point, i in zip(db_patches, mask) if i == 1]
-        
+        inliers_similarity = [sim for sim, i in zip(similarity, mask) if i == 1]
+
         outliers_qr = [point for point, i in zip(query_patches, mask) if i == 0]
         outliers_db = [point for point, i in zip(db_patches, mask) if i == 0]
+        outliers_similarity = [sim for sim, i in zip(similarity, mask) if i == 0]
         
         
         # Plotting outliers first
-        for LAF_q, LAF_db, sim in zip(outliers_qr, outliers_db, similarity):
+        for LAF_q, LAF_db, sim in zip(outliers_qr, outliers_db, outliers_similarity):
             # Intensity depends on feature similarity
     
             # max opacity can be determined with the similarity parameter as well. The same applies to inlier plot loop. 
@@ -148,7 +150,7 @@ def visualise_match(input, topk=5, path_to_load="file", uncropped=True, gap=20, 
             plt.plot([p1[0], p2[0]], [p1[1], p2[1]], color=(*outlier_color, min(max_opacity* 3, 1)))
         
         # Plotting inliers
-        for LAF_q, LAF_db, sim in zip(inliers_qr, inliers_db, similarity):
+        for LAF_q, LAF_db, sim in zip(inliers_qr, inliers_db, inliers_similarity):
             max_opacity = sim # .4
             p1 = ell2plotMatch(plt, LAF_q, colors_in, shift=query_shift, scale=query_ratio,n_rad=n_rad, max_opacity=max_opacity, n_pts=n_pts)
             p2 = ell2plotMatch(plt, LAF_db, colors_in, shift=shift, scale=db_ratio, n_rad=n_rad, max_opacity=max_opacity, n_pts=n_pts)
