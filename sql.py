@@ -448,6 +448,24 @@ def get_image(conn, seal_id, image_path):
 
     return result[0]
 
+def get_images_by_seal_viewpoint(conn, seal_id, viewpoint):
+    c = conn.cursor()
+
+    c.execute("SELECT image_id FROM database WHERE seal_id = %s AND {0}=true".format("viewpoint_" + viewpoint), (seal_id,))
+
+    result = c.fetchall()
+    c.close()
+    return result
+
+def get_features_coordinates(conn, image_id):
+    c = conn.cursor()
+
+    c.execute("SELECT encoding,coordinates FROM patches where image_id=%s", (image_id,))
+
+    result = c.fetchall()
+    c.close()
+    return result
+
 def get_seals(conn, species):
     c = conn.cursor()
 
