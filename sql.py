@@ -463,8 +463,12 @@ def get_features_coordinates(conn, image_id):
     c.execute("SELECT encoding,coordinates FROM patches where image_id=%s", (image_id,))
 
     result = c.fetchall()
+
+    db_features = np.array([res[0] for res in result]) 
+    db_ellipses = np.array([res[1] for res in result]) 
     c.close()
-    return result
+    return db_features, db_ellipses
+
 
 def get_seals(conn, species):
     c = conn.cursor()
@@ -505,3 +509,16 @@ def dataset_from_db(db_ids, db_viewpoints, db_features):
 
 def dataset_from_sql(conn, viewpoints, species):
     return dataset_from_db(*get_all_fishers(conn, viewpoints, species))
+
+def load_features_coordinates(input, conn):
+    matches, query_labels = input
+    for match in matches:
+        label = match["db_label"]
+        img_ids = get_images_by_seal_viewpoint(conn, label["class_id"], label["viewpoint"])
+        labels = []
+        for img_id in img_ids:
+            features, ellipses = get_features_coordinates(conn, img_id)
+            labels.append({"img_id":img_id[0], "features":features.astype(dtype=np.float64), "ellipses":ellipses.astype(dtype=np.float64)})
+        label["labels"] = labels        
+    
+    return [(matches, query_labels)]
