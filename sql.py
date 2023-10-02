@@ -288,6 +288,7 @@ def get_patch_features(conn, image_id):
     c.close()
     return db_features
 
+
 def get_patch_coordinates(conn, image_id):
     c = conn.cursor()
 
@@ -300,19 +301,54 @@ def get_patch_coordinates(conn, image_id):
     c.close()
     return ids, db_features
 
-def get_patch_features_multiple_ids(conn, ids):
+def get_patches_multiple_ids(conn, ids):
     c = conn.cursor()
 
     bindings = ",".join(["%s"] * len(ids))
-    c.execute(f"SELECT image_id, encoding FROM patches WHERE image_id IN ({bindings})", [int(x) for x in ids])
+    c.execute(f"SELECT image_id, encoding, coordinates FROM patches WHERE image_id IN ({bindings})", [int(x) for x in ids])
     
     result = c.fetchall()
 
-    db_features = np.array([np.fromstring(res[1], dtype=np.float32, sep=' ') for res in result])
+    db_features = np.array([res[1] for res in result]) 
+    db_ellipses = np.array([res[2] for res in result]) 
     db_ids = np.array([int(res[0]) for res in result])
     c.close()
-    return db_ids, db_features
+    return db_ids, db_features, db_ellipses
 
+def get_all_fishers(conn, viewpoints, species):
+    c = conn.cursor()
+    encodings_str = ", ".join([f"encoding_{i}" for i in range(12)])
+    viewpoints_str = ", ".join(["%s"] * len(viewpoints))
+    
+    c.execute("SELECT seal_id, viewpoint, {} FROM fisher_vectors WHERE viewpoint in ({}) AND seal_id IN (SELECT seal_id from seals WHERE species=%s)".format(encodings_str, viewpoints_str), 
+              (*viewpoints, species))
+    
+    result = c.fetchall()
+
+    # db_features = np.array([np.fromstring(res[2], dtype=np.float64, sep=' ') for res in result]) #(np.array2string(encoding)[1:-1]
+    db_features = np.array([np.hstack(res[2:]) for res in result])
+    db_ids = np.array([res[0] for res in result])
+    db_viewpoints = np.array([res[1] for res in result])
+    c.close()
+    return db_ids, db_viewpoints, db_features
+
+def chunks(lst, n):
+    """Yield successive n-sized chunks from lst."""
+    for i in range(0, len(lst), n):
+        yield lst[i:i + n]
+
+def upload_fisher(conn, seal_id, viewpoint, encoding):
+    cur = conn.cursor()
+    encodings_str = ", ".join([f"encoding_{i}" for i in range(12)])
+    format_str = ", ".join(["%s"] * 12)
+    
+    # cur.execute("INSERT INTO fisher_vectors (seal_id, viewpoint, encoding) VALUES (%s, %s, %s)", (seal_id, viewpoint, np.array2string(encoding, threshold=np.inf, max_line_width=np.inf)[1:-1]))
+    cur.execute("INSERT INTO fisher_vectors (seal_id, viewpoint, {}) VALUES (%s, %s, {})".format(encodings_str, format_str), 
+                (seal_id, viewpoint, *chunks(encoding, 16000)))
+    
+    
+    conn.commit()
+    return True
 
 def get_database_sql(conn, species):
     c = conn.cursor()
@@ -440,7 +476,14 @@ def aggregate_fisher_per_class(conn, codebooks, species, viewpoints = ["right", 
             
             if len(all_features) == 0:
                 continue
-            all_features = np.array(all_features)[:, 0, :]
+            all_features = np.array(all_features)[:, 0, :].astype(dtype=np.float64)
             encoded = aggregate_features(all_features, encoding_params) # from reidentification.encoding_utils
             db.append((encoded, {"class_id":seal_id, "viewpoint":viewpoint}))
     return db
+
+
+def dataset_from_db(db_ids, db_viewpoints, db_features):
+    return [(fisher, {'class_id':class_id, 'viewpoint':viewpoint}) for (class_id, viewpoint, fisher) in zip(db_ids, db_viewpoints, db_features)]
+
+def dataset_from_sql(conn, viewpoints, species):
+    return dataset_from_db(*get_all_fishers(conn, viewpoints, species))

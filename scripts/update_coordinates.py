@@ -176,14 +176,14 @@ def main():
                           crop_label_step_sequential(), 
                           *smart_resize_preprocess]
     datasets = [  
-                    ("norppa_database_segmented_pattern", 
-                     GroupDataset("/ekaterina/work/data/norppa_database_segmented_pattern", "viewpoint")[7290:], 
-                     None, 
-                     "norppa_database_segmented_pattern")
-                    #  ("norppa_database_pattern_unknown", 
-                    #  SimpleDataset("/ekaterina/work/data/norppa_database_pattern_unknown"), 
+                    # ("norppa_database_segmented_pattern", 
+                    #  GroupDataset("/ekaterina/work/data/norppa_database_segmented_pattern", "viewpoint"), 
                     #  None, 
                     #  "norppa_database_segmented_pattern")
+                     ("norppa_database_pattern_unknown", 
+                     SimpleDataset("/ekaterina/work/data/norppa_database_pattern_unknown"), 
+                     None, 
+                     "norppa_database_segmented_pattern")
                 ]
     process_datasets(datasets)
 
