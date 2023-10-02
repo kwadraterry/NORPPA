@@ -190,11 +190,8 @@ class QueryDataset(Dataset):
     def _get_data(self, dataset_dir):
         dataset_dir = Path(dataset_dir)
         result = []
-        for class_dir in [x for x in dataset_dir.iterdir() if x.is_dir()]:
-            imgs = list(class_dir.iterdir())
-            lim = self._check_limit(imgs)
-            for img in imgs[:lim]:
-                result.append((str(img), class_dir.name))
+        for img in dataset_dir.iterdir():
+            result.append(str(img))
         return result
     
     def get_labels(self):
