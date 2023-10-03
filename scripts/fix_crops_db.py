@@ -5,8 +5,9 @@ os.environ["CUDA_VISIBLE_DEVICES"]="0"
 import config
 
 from config import config
+import sys
+from pathlib import Path
 
-from temp.sql import *
 from datasets import COCOImageDataset, SimpleDataset, DatasetSlice, COCOLeopardDataset, GroupDataset
 
 from norppa_tools import compose_sequential, get_leopard_singletons, crop_label_step_sequential, load_pickle, curry, apply_pipeline_dataset, curry_sequential, print_topk_accuracy, save_pickle, print_step, resize_dataset
@@ -15,6 +16,12 @@ from reidentification.find_matches import find_matches
 from datetime import datetime
 from skimage import color
 import numpy as np
+
+backend_folder = Path(__file__).resolve().parent.parent.parent
+sys.path.append(str(backend_folder))
+
+from sql import *
+from sql_adapter import *
 
 def update_codebooks(input, cfg, save_path=None):
     """
