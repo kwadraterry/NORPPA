@@ -6,4 +6,8 @@ export PYTHONPATH="${PYTHONPATH}:${NORPPA_DIR}"
 
 cd $NORPPA_DIR
 
-python ./scripts/update_coordinates.py "$@" | tee ./output/update_coordinates.txt
+script=${1/%".py"}
+
+shift;
+
+python "./scripts/$script.py" "$@" | tee "./output/$script.txt"

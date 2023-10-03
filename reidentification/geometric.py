@@ -5,8 +5,6 @@ from cyvlfeat.fisher import fisher
 from PIL import Image
 import math
 
-from sql import *
-
 import torch
 from torchvision import transforms
 
