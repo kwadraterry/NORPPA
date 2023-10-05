@@ -423,3 +423,10 @@ class StopwatchPrint(object):
     def __exit__(self, exc_type, exc_value, exc_traceback):
         self.toc = timer()
         print(self.final_print % (self.toc-self.tic))
+
+
+def overwrite_step(input):
+    image, label = input
+    if image is not None:
+        image.save(label['file'])
+    return [input]
