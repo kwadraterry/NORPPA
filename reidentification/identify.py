@@ -424,8 +424,11 @@ def get_label(db, i):
 
     
 def identify(query, database=None, topk=5, leave_one_out=False):
+    if query is None:
+        return [None]
     if database is None:
         database = query
+    query = [(f, l) for (f, l) in query if f is not None]
     query_features = np.concatenate([f[np.newaxis,...] for (f, _) in query])
     
     def add_fisher_field(label, fisher):
