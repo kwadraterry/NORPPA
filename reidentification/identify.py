@@ -453,6 +453,8 @@ def identify(query, database=None, topk=5, leave_one_out=False):
 
 
 def apply_geometric(input, params):
+    if input is None:
+        return [input]
     matches, query_labels = input
     order = re_evaluate(matches, params)
     for est, mask, k in order:
