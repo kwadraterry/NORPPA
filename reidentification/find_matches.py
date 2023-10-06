@@ -6,6 +6,8 @@ from reidentification.encoding_utils import calculate_dists
 
 
 def find_matches(identification_result, cfg):
+    if identification_result is None:
+        return [identification_result]
     matches, query_labels = identification_result
     query_images = query_labels["labels"]
     if len(query_images) == 1:
