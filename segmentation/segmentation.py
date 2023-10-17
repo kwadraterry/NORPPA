@@ -14,10 +14,11 @@ def segment(input, predictor, instance_segmentation=False):
     image, img_label = input
     model = predictor["model"]
     transform = predictor["transform"]
+    species = predictor["species"]
     if image is None:
         return [input]
 
-    result_images = seem_segment(image, model, transform)
+    result_images = seem_segment(image, model, transform, species)
     # result_images, num_instances = detectron_segment(predictor, image, instance_segmentation)
     # if instance_segmentation:
     #     return [(img, add_instance_info(img_label, i, num_instances)) for img,i in enumerate(result_images)]

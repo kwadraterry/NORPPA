@@ -105,7 +105,8 @@ def config(use_cuda=torch.cuda.is_available(), allow_download=True, base_dir=fil
     seem_model, seem_transform = init_seem(conf_files=str(Path(filedir/"segmentation/seem/configs/seem/seem_focall_lang.yaml")), model_path=str(Path(base_dir/"models")), use_cuda=use_cuda)
     config["seem"] = {
         "model": seem_model,
-        "transform": seem_transform
+        "transform": seem_transform,
+        "species": "seal"
     }
     
 
