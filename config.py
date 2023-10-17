@@ -64,7 +64,7 @@ def config(use_cuda=torch.cuda.is_available(), allow_download=True, base_dir=fil
     codebooks_path = init_file(base_dir/'codebooks/codebooks.pickle',
                                "https://github.com/kwadraterry/NORPPA/raw/models/codebooks/codebooks.pickle", 
                                allow_download=allow_download)
-    config["codebooks_path"] = Path(base_dir/"codebooks/norppa.pickle")
+    config["codebooks_path"] = Path(codebooks_path)
     config["codebooks"] = None
     config["hesaff_args"] = {'init_sigma': 1.3213713243956968, 
                             'mrSize': 9.348280997446642, 
