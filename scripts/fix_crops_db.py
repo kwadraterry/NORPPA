@@ -23,29 +23,6 @@ sys.path.append(str(backend_folder))
 from sql import *
 from sql_adapter import *
 
-def update_codebooks(input, cfg, save_path=None):
-    """
-    A pipeline step used after encode_dataset/encode_patches with compute_codebooks=True.
-    Accepts a tuple of form (codebooks, encoded), updates config dict with provided 
-    codebooks and returns encoded.
-    If save_path is not None, saves the codebooks to the provided path
-    """
-    (codebooks, encoded) = input
-    cfg["codebooks_path"] = None
-    cfg["codebooks"] = codebooks
-    if save_path is not None:
-        save_pickle(codebooks, save_path)
-    return encoded
-
-def load_codebooks(input, cfg, load_path=None):
-    """
-    A pipeline step that loads codebooks and updates the config dict.
-    Returns input without modification.
-    """
-    cfg["codebooks_path"] = None
-    cfg["codebooks"] = load_pickle(load_path)
-    return input
-
 def print_identity(x):
     print(x)
     return [x]
@@ -53,40 +30,45 @@ def print_identity(x):
 def crop_overwrite(input, conn):
     img, label = input
     labels = color.rgb2gray(np.asarray(img))
-    labels = (labels > 0).astype(np.uint8)
+    labels = (labels > 0.1).astype(np.uint8)
     where = np.where(labels)
     y1, x1 = np.amin(where, axis=1)
     y2, x2 = np.amax(where, axis=1)
+
+    if y1 <= 1 and x1 <= 1 and x2 >= img.width-1 and y2 >= img.height-1:
+        print("No need for crop, skipping")
+        return input
     
     print("crop bb: ", (x1, y1, x2, y2))
     img_cropped = img.crop((x1, y1, x2, y2))
 
-    seal_id = label['class_id'].split("_")[0].lower()
-    seal_name = ""
-    if len(label['class_id'].split("_")) > 1:
-        seal_name = label['class_id'].split("_")[1]
+    seal_id = label['class_id']
     img_path = label['file'].split("/")[-1]
-    viewpoints = {"right": False, "left": False, "up": False, "down": False}
-    
-    if label.get('viewpoint', 'unknown') != "unknown":
-        viewpoints[label['viewpoint']] = True
 
-    existing_ids, existing_paths = get_img_paths_by_id(conn, seal_id)
-    
-    img_id = existing_ids[existing_paths.index(img_path)] if img_path in existing_paths else None
+    img_id = get_image(conn, seal_id, img_path)
+
     if img_id is not None:
         # print("Image exists")
 
-        clean_patches(conn, img_id)
 
-        patch_encodings, patch_coordinates = get_features_coordinates(conn, img_id)
+        patch_ids, patch_coordinates = get_patch_coordinates(conn, img_id)
+        c = conn.cursor()
 
-        for patch_encoding, patch_coordinate in zip(patch_encodings, patch_coordinates):
+        sql = """ UPDATE patches SET coordinates = %s WHERE patch_id = %s """
+            
+
+
+        for patch_id, patch_coordinate in zip(patch_ids, patch_coordinates):
             # print("old coordinate: ", patch_coordinate, [x*img.width for x in patch_coordinate])
             patch_coordinate[0] = (patch_coordinate[0]*img.width - x1)/img_cropped.width
             patch_coordinate[1] = (patch_coordinate[1]*img.width - y1)/img_cropped.width
-            # print("new coordinate: ", patch_coordinate, [x*img_cropped.width for x in patch_coordinate])
-            insert_patches(conn, img_id, patch_coordinate, patch_encoding)
+            for i in range(2, 5):
+                patch_coordinate[i] = patch_coordinate[i] * img.width/img_cropped.width
+            
+            c.execute(sql, (patch_coordinate, int(patch_id)))              
+        conn.commit()
+
+        c.close()
     
     # print("OVerwriting to ", label['file'])
     img_cropped.save(label['file'])
@@ -94,10 +76,7 @@ def crop_overwrite(input, conn):
     
 
 
-def create_encode_pipeline(dataset_name, 
-                    extractor_name, 
-                    extractor,
-                    cfg):
+def create_pipeline(cfg):
     
     encode_pipeline = [
         compose_sequential(  
@@ -106,27 +85,6 @@ def create_encode_pipeline(dataset_name,
     ]
     return encode_pipeline
     
-
-def create_pipeline(dataset_name, 
-                    extractor_name, 
-                    extractor,
-                    cfg, 
-                    codebooks_dataset=None):
-    """
-    Create full pipeline. Considers several special cases:
-    - Whether the codebooks need to be generated or loaded
-    - Whether leave-one-out strategy or query/database split is used
-    """
-    if codebooks_dataset is not None:
-        # Load the codebooks of the specified dataset
-        cfg["codebooks"] = load_pickle(f"./codebooks/codebooks_{codebooks_dataset}_{extractor_name}.pickle")
-    
-    pipeline = create_encode_pipeline(dataset_name, 
-                    extractor_name, 
-                    extractor,
-                    cfg)
-    
-    return pipeline
 
 def process_datasets(datasets, topk=20):
     """
@@ -142,7 +100,7 @@ def process_datasets(datasets, topk=20):
     For each dataset, runs complete pipeline (starting from feature extraction) and prints out re-identification accuracy.
 
     """
-    for (dataset_name, dataset, preprocessing, codebooks_dataset) in datasets:
+    for (dataset_name, dataset) in datasets:
         print()
         print(f"Dataset name: {dataset_name}")
 
@@ -151,55 +109,21 @@ def process_datasets(datasets, topk=20):
         print(f"Dataset: {dataset}")
         print()
 
-        cfg = config()
-        cfg["codebooks_path"] = None
-        ### Adjust config parameters here
-        cfg["topk"]=topk
-
+        cfg = {}
 
         ### TODO: Create psql connection here
         cfg["conn"] = create_connection()
 
-        ### Create dataset
-        # dataset = SimpleDataset(dataset_dir)
-
-
-        ### List of feature extractors to test
-        extractors = [
-            ("HessAffNetHardNet", getHessAffNetHardNet(cfg)),
-            # ("DISK", getDISK()),
-            # ("KeyNetAffNetHardNet", getKeyNetAffNetHardNet())
-        ]
-
-        for (extractor_name, extractor) in extractors:
-            print()
-            print(f"Testing extractor {extractor_name}...")
-            print()
-            pipeline = create_pipeline(dataset_name, 
-                    extractor_name, 
-                    extractor,
-                    cfg, 
-                    codebooks_dataset=codebooks_dataset)
+        pipeline = create_pipeline(cfg)
             
-            print()
-            apply_pipeline_dataset(dataset, pipeline, True)
-            print()
+        apply_pipeline_dataset(dataset, pipeline, True)
+        
 
 def main():
-    smart_resize_size = 255
-    smart_resize_preprocess = [print_step(f"Resizing dataset (max side is {smart_resize_size})..."),
-                                curry_sequential(resize_dataset, smart_resize_size)]
-    
-    leopard_preprocess = [print_step("Removing singletons..."), 
-                          get_leopard_singletons, 
-                          print_step("Cropping bounding boxes..."),
-                          crop_label_step_sequential(), 
-                          *smart_resize_preprocess]
+    ds = SimpleDataset("/app/mount/public/database/norppa")
     datasets = [  
                     ("norppa_database_segmented", 
-                     GroupDataset("/ekaterina/work/data/norppa_database_segmented", "viewpoint"), 
-                     None, 
-                     "norppa_database_segmented_pattern")
+                     DatasetSlice(ds, (6071, len(ds))))
                     #  ("norppa_database_pattern_unknown", 
                     #  SimpleDataset("/ekaterina/work/data/norppa_database_pattern_unknown"), 
                     #  None, 
