@@ -10,6 +10,7 @@ from torchvision import transforms
 
 import pickle
 from reidentification.encoding_utils import *
+# from reidentification.identify import fisher_single
 import numpy as np
 import torchvision.datasets as dset
 import gc
@@ -21,6 +22,41 @@ import itertools as it
 
 from HessianAffinePatches import extract_hesaff_patches
 
+
+
+def reestimate_distance(match, inliers, query_labels, cfg):
+    db_ind = match['db_ind']
+    query_inds, db_inds = match['inds'] 
+    db_label = match['db_label']['labels'][db_ind]
+    features = db_label['features'][db_inds, :]
+    
+    features = features[inliers[:, 0], :]
+    db_fisher = fisher_single(features, cfg)
+
+
+    query_ind = match['query_ind']
+    query_label = query_labels['labels'][query_ind]
+    features = query_label['features'][query_inds, :]
+    features = features[inliers[:, 0], :]
+    query_fisher = fisher_single(features, cfg)
+
+    (dist, _) = calculate_dists([query_fisher], [db_fisher])
+
+    return dist[0]
+
+def re_evaluate_fisher(matches, query_labels, cfg):
+    # for each match, get image_features, inliers, find feature for inliers, aggregate to fisher vector and calculate distance
+    est_cfg = cfg["geometric"]
+    inliers = geometric_verification(matches, est_cfg)
+    
+    if len(inliers) == 0:
+        return matches
+    
+    # order = [(est_cfg["estimator"](dist, mask), mask, i) for i, (dist, mask) in enumerate(zip(matches, inliers))]
+    order = [(reestimate_distance(match, match_inliers, query_labels, cfg), match_inliers, i) for i, (match, match_inliers) in enumerate(zip(matches, inliers))]
+    order.sort(key = lambda x: (x[0], x[2]))
+    
+    return order
 
 # Re-orders original results. Returns the new order of indices.
 def re_evaluate(matches, est_cfg):

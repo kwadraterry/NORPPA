@@ -29,8 +29,7 @@ import kornia.feature as KF
 from kornia_moons.feature import *
 
 torch.autograd.set_grad_enabled(False)
-from tqdm import tqdm
-
+from tqdm.autonotebook import tqdm
 
 def get_patch_num(width, patch_size, step):
     return math.ceil((width - patch_size + 1)/step)
@@ -334,7 +333,7 @@ def _encode_patches(dataset_patches, config, codebooks=None, group_label='file')
     return features, labels, codebooks
  
 
-def do_matching(test_feats, db_feats, percentile=10):
+def do_matching(test_feats, db_feats, percentile=10, max_len=200):
     dists, sorted_inds = calculate_dists(test_feats, db_feats)
     sorted_dists = np.take_along_axis(dists, sorted_inds, axis=1)
 #     print(sorted_dists.shape)
@@ -349,7 +348,7 @@ def do_matching(test_feats, db_feats, percentile=10):
     similarity = (np.max(sorted_dists) - sorted_dists) / np.max(sorted_dists)
     filt = np.nonzero(filt)[0]
     similarity[np.isnan(similarity)] = 1.0
-    max_len = 200
+
     if len(similarity) > max_len:
         similarity = similarity[:max_len]
         sorted_inds = sorted_inds[:max_len]
@@ -364,14 +363,6 @@ def match_topk(test_features, db_features, topk, leave_one_out=False):
     sorted_inds = np.argsort(dists, axis=1)
     dists = np.take_along_axis(dists, sorted_inds, axis=1)
     return dists[:, :topk], sorted_inds[:, :topk]
-
-def load_codebooks(cfg):
-    if cfg['codebooks'] is None:
-        print(cfg["codebooks_path"])
-        with open(cfg['codebooks_path'],"rb") as codebooks_file:
-            cfg['codebooks'] = pickle.load(codebooks_file)
-    return cfg['codebooks']
-
 
 
 def encode_single(input, cfg, group_label='file', init_apply=None, compute_codebooks=False):
@@ -404,8 +395,8 @@ def encode_patches(dataset, cfg, group_label='file', compute_codebooks=False):
 def encode_patches_single(input, cfg, group_label='file', compute_codebooks=False):
     return encode_patches([input], cfg, group_label, compute_codebooks)
 
-def identify_single(query, database, cfg):
-    return identify([query], database, cfg)
+def identify_single(query, database):
+    return identify([query], database,)
 
 
 
@@ -421,6 +412,73 @@ def get_label(db, i):
         return db.get_label(i)
     else:
         return db[i][1]
+
+def reaggregate_class(class_samples, cfg):
+    class_id = class_samples[0][1]['class_id']
+    labels = [x[1]['labels'][0] for x in class_samples]
+
+    features = np.vstack([x['features'] for x in labels])
+    codebooks = load_codebooks(cfg)
+    encoding_params = codebooks["gmm"]
+    agg_fisher = aggregate_features(features, encoding_params) # 
+
+    return (agg_fisher, {'class_id':class_id, 'labels':labels})
+
+def identify_many_leave_one_out(query, cfg, database=None, topk=5):
+    if query is None:
+        return [None]
+    query = [x for x in query if x is not None and x[0] is not None]
+    if len(query) == 0:
+        return [None]
+    
+    dists = []
+    request_ids = []
+
+    all_matches = []
+    
+    if database is None:
+        database = query
+    def add_fisher_field(label, fisher):
+        label["fisher"] = fisher
+        return label
+    codebooks = load_codebooks(cfg)
+    encoding_params = codebooks["gmm"]
+    query_labels = []
+    db_features = get_fisher_vectors(database)
+
+    for (di, (database_exclude_fisher, database_exclude)) in tqdm(enumerate(database), total=len(database), position=0):
+        if len(database_exclude["labels"]) == 1:
+            continue
+        for (qj, query_label) in tqdm(enumerate(database_exclude["labels"]), total=len(database_exclude["labels"]), leave=False, position=1):
+            class_id = query_label['class_id']
+            query_features = aggregate_features(query_label['features'], encoding_params)
+            query_label = {"labels":[query_label], "class_id":class_id, "fisher":query_features}
+
+            new_db_labels = database_exclude["labels"][:qj] + database_exclude["labels"][qj+1:]
+            new_db_label = {"labels":new_db_labels, "class_id":class_id}
+            new_db_class_features = np.vstack([l['features'] for l in new_db_labels])
+            new_db_class_features = aggregate_features(new_db_class_features, encoding_params)
+            # new_database = database[:di] + [(new_db_class_features, new_db_label)] + database[di+1 :]
+            database[di] = (new_db_class_features, new_db_label)
+            
+            # new_db_features = get_fisher_vectors(database)
+            db_features[di, ...] = new_db_class_features
+            
+            
+            dists, request_ids = match_topk(query_features[np.newaxis,...], db_features, topk)
+            
+            matches = [None] * request_ids.shape[0]
+            for i in range(request_ids.shape[0]):
+                matches[i] = [None] * request_ids.shape[1]
+                for j in range(request_ids.shape[1]):
+                    matches[i][j] = {"db_label": add_fisher_field(get_label(database, request_ids[i, j]), db_features[request_ids[i, j]]), "distance": dists[i, j]}
+            all_matches.extend(matches)
+            query_labels.append(query_label)
+        database[di] = (database_exclude_fisher, database_exclude)
+        db_features[di, ...] = database_exclude_fisher
+
+    return list(zip(all_matches, query_labels))
+
 
     
 def identify(query, database=None, topk=5, leave_one_out=False):
@@ -457,6 +515,18 @@ def apply_geometric(input, params):
         return [input]
     matches, query_labels = input
     order = re_evaluate(matches, params)
+    for est, mask, k in order:
+        matches[k]["Geom_Est"] = est
+        matches[k]["Mask"] = mask
+    matches = [matches[k] for _, _, k in order]
+    return [(matches, query_labels)]
+
+
+def apply_geometric_fisher(input, cfg):
+    if input is None:
+        return [input]
+    matches, query_labels = input
+    order = re_evaluate_fisher(matches, query_labels, cfg)
     for est, mask, k in order:
         matches[k]["Geom_Est"] = est
         matches[k]["Mask"] = mask
