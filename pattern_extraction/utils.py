@@ -41,7 +41,10 @@ def crop(img_path, flag_multi_class=False):
 
 def smart_resize(img, size, return_ratio=False):
     ratio = size / max(img.size)
-    result = img.resize(tuple(int(i * ratio) for i in img.size), Image.LANCZOS)
+    if int(img.size[0] * ratio) == 0 or int(img.size[1] * ratio) == 0:
+        result = None
+    else:
+        result = img.resize(tuple(int(i * ratio) for i in img.size), Image.LANCZOS)
     if return_ratio:
         return (result, ratio)
     else:

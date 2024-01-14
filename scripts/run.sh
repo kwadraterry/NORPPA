@@ -10,4 +10,8 @@ script=${1/%".py"}
 
 shift;
 
-python "./scripts/$script.py" "$@" | tee "./output/$script.txt"
+suffix=$1
+
+shift;
+
+python "./scripts/$script.py" "$@" | tee "./output/${script}_${suffix}.txt"

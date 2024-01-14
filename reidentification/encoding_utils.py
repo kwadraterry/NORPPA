@@ -11,6 +11,21 @@ import io
 from base64 import encodebytes
 from sklearn.mixture import GaussianMixture
 import math
+import pickle
+
+def load_codebooks(cfg):
+    if cfg['codebooks'] is None:
+        print(cfg["codebooks_path"])
+        with open(cfg['codebooks_path'],"rb") as codebooks_file:
+            cfg['codebooks'] = pickle.load(codebooks_file)
+    return cfg['codebooks']
+
+def fisher_single(patch_features, cfg):
+    codebooks = load_codebooks(cfg)
+    encoding_params = codebooks["gmm"]
+    # print(patch_features.shape)
+    encoded = fisher(patch_features, *encoding_params, improved=True)
+    return encoded
 
 def cdist_std(x, y):
     return cdist(x, y, "cosine")
