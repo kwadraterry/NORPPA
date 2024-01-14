@@ -430,3 +430,9 @@ def overwrite_step(input):
     if image is not None:
         image.save(label['file'])
     return [input]
+
+def reformat_viewpoints(viewpoints):
+    all_viewpoints = {"left": False, "right": False, "up": False, "down": False, "front": False, "back": False}
+    for v in viewpoints:
+        all_viewpoints[v] = True
+    return all_viewpoints
