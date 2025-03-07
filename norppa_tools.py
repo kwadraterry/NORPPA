@@ -1,4 +1,5 @@
 
+import collections
 from datetime import datetime
 import random
 import string
@@ -13,6 +14,9 @@ from six.moves import urllib
 from timeit import default_timer as timer
 from pattern_extraction.utils import thickness_resize
 from pattern_extraction.extract_pattern import smart_resize
+from skimage import color
+from skimage.morphology import opening, closing
+from skimage.morphology import disk
 
 from PIL import Image, ImageFile
 ImageFile.LOAD_TRUNCATED_IMAGES = True
@@ -41,7 +45,6 @@ def get_smart_shrink_step(max_size):
 
 def smart_shrink_step(input, max_size):
     img, label = input
-    print(label)
     return [(smart_shrink(img, max_size), label)]
 
 def smart_shrink(img, max_size, return_ratio=False):
@@ -204,9 +207,13 @@ def is_image(filename):
 def is_raw_image(filename):
     return filename.lower().endswith(('cr2', 'pef', 'nef'))
 
-def crop_to_bb(img, return_bb=False):
+def crop_to_bb(img, return_bb=False, opening_size=20, closing_size=50):
     labels = color.rgb2gray(np.asarray(img))
     labels = (labels > 0).astype(np.uint8)
+
+    # labels = opening(labels, disk(opening_size))
+    # labels = closing(labels, disk(closing_size))
+
     where = np.where(labels)
     y1, x1 = np.amin(where, axis=1)
     y2, x2 = np.amax(where, axis=1)
@@ -216,6 +223,20 @@ def crop_to_bb(img, return_bb=False):
     else:
         return img_cropped
 
+
+def add_noise(img, mean=122, std=25):
+    labels = color.rgb2gray(np.asarray(img))
+    
+    labels = labels < 2/255
+    black_indices = np.where(labels)
+    # noise = 
+    low=0 
+    high=255
+    img_with_noise = np.copy(img)
+    for c in [0,1,2]:
+        img_with_noise[black_indices[0], black_indices[1], c] = np.random.uniform(low, high, black_indices[0].shape).astype(np.uint8)
+    img_with_noise = np.clip(img_with_noise, 0, 255).astype(np.uint8)
+    return Image.fromarray(img_with_noise)
 
 
 def crop_imgs_in_dir(src):
@@ -233,19 +254,27 @@ def bbox_to_coords(bbox):
 
 def crop_label_step(input, bb_field="bbox"):
     image, label = input
+    # print(image.size)
     if image is not None:
         image = image.crop(bbox_to_coords(label[bb_field]))
+        # print("After:",image.size)
     return [(image, label)]
 
 def crop_label_step_sequential(bb_field="bbox"):
     return curry_sequential(crop_label_step, bb_field=bb_field)
 
-def crop_step(input):
+def crop_step(input, bb_field="bbox"):
     image, label = input 
     if image is not None:
         image, bb = crop_to_bb(image, True)
         if type(label) is dict:
-            label["bb"] = bb
+            label[bb_field] = bb
+    return [(image, label)]
+
+def noise_step(input):
+    image, label = input 
+    if image is not None:
+        image = add_noise(image)
     return [(image, label)]
 
 def crop_step_sequential(input):
@@ -360,16 +389,16 @@ def calculate_accuracy(result, max_topk=None):
     print(f'TOP-k={topk}')
     hits = topk_matrix 
     # hits = (db_labels.T == q_labels).T
-    print([sum((np.sum(hits[:, :j+1], axis=1) > 0)) / len(topk_matrix)
+    print([sum(np.sum(hits[:, :j+1], axis=1) > 0) / len(topk_matrix)
             for j in range(topk)])
     
-def get_topk_matrix(identification_result):
-    result = []
-    for (db_labels, q_labels) in identification_result:
-        q_class = q_labels['class_id']
-        q_ln = len(q_labels['labels'])
-        result.append([db_label['db_label']['class_id']==q_class for db_label in db_labels]*q_ln)
-    return np.asarray(result)
+# def get_topk_matrix(identification_result):
+#     result = []
+#     for (db_labels, q_labels) in identification_result:
+#         q_class = q_labels['class_id']
+#         q_ln = len(q_labels['labels'])
+#         result.append([db_label['db_label']['class_id']==q_class for db_label in db_labels]*q_ln)
+#     return np.asarray(result)
 
 
 def get_topk_accuracy(identification_result):
@@ -390,6 +419,49 @@ def print_topk_accuracy(identification_result, label=""):
         print(f"Top-{i+1} accuracy: {acc*100}%")
     return identification_result
 
+def get_class_counts(dataset):
+    class_ids = []
+    for (_, label) in dataset:
+        n = len(label["labels"]) if ("labels" in label) else 1
+        class_ids.extend([label["class_id"]] * n)
+    return collections.Counter(class_ids)
+
+def print_mAP(identification_result, label="", leave_one_out=False, db_dataset=None):
+    mAP = calculate_mAP(identification_result, db_dataset, leave_one_out)
+    print(label)
+    print(f"mAP: {mAP}")
+    return identification_result
+
+def calculate_mAP(identification_result, db_dataset=None, leave_one_out=False):
+    if db_dataset is not None:
+        class_nums = get_class_counts(db_dataset)
+    all_AP = []
+
+    for (db_labels, q_labels) in identification_result:
+        q_class = q_labels['class_id']
+        
+        q_ln = len(q_labels['labels'])
+        raw_cmc = np.array([db_label['db_label']['class_id']==q_class for db_label in db_labels])
+
+        if db_dataset is not None:
+            num_rel = class_nums[q_class]
+        elif "possible_matches" in q_labels:
+            num_rel = q_labels["possible_matches"]
+        if leave_one_out:
+            num_rel -= 1
+        if num_rel == 0:
+            continue
+        tmp_cmc = raw_cmc.cumsum()
+        # P(k)
+        tmp_cmc = [x / (i + 1.0) for i, x in enumerate(tmp_cmc)]
+        # P(K) * rel(k)
+        tmp_cmc = np.asarray(tmp_cmc) * raw_cmc
+        # Sigma(P(k) * rel(k))) / number of relevant samples
+        AP = tmp_cmc.sum() / num_rel
+        for _ in range(q_ln):
+            all_AP.append(AP)
+    mAP = np.mean(all_AP)
+    return mAP
 
 def resize_dataset(input, size):
     image, img_label = input
